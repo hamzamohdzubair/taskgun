@@ -16,8 +16,8 @@ pub struct CreateArgs {
     #[arg(short = 'p', long, required = true)]
     parts: String,
 
-    /// Task name prefix (default: "Video")
-    #[arg(short = 'u', long, default_value = "Video")]
+    /// Task name prefix (default: "Part")
+    #[arg(short = 'u', long, default_value = "Part")]
     unit: String,
 
     /// Time until first task is due (e.g., "5d" for 5 days, "2h" for 2 hours)

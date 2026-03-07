@@ -15,7 +15,7 @@ Large sequential projects need structure and accountability. taskgun lets you br
 You discover a 10-part lecture series on Machine Learning. Schedule one lecture per day starting in 2 days:
 
 ```bash
-taskgun create "ML Course" -p 10 -u "Lecture" --offset 2d --interval 1d
+taskgun create "ML Course" -p 10 -u Lecture --offset 2d --interval 1d
 ```
 
 Creates:
@@ -29,7 +29,7 @@ Creates:
 Reading "Introduction to Algorithms" with 12 chapters. Schedule one chapter per week starting next week:
 
 ```bash
-taskgun create "CLRS" -p 12 -u "Chapter" --offset 7d --interval 7d --skip weekend
+taskgun create CLRS -p 12 -u Chapter --offset 7d --interval 7d --skip weekend
 ```
 
 Creates:
@@ -43,7 +43,7 @@ Creates:
 Reading "Design Patterns" with 3 chapters, but each chapter is too long. Chapter 1 has 3 sections, Chapter 2 has 4 sections, Chapter 3 has 2 sections. Schedule one section every 3 days:
 
 ```bash
-taskgun create "Design Patterns" -p 3,4,2 -u "Section" --offset 3d --interval 3d
+taskgun create "Design Patterns" -p 3,4,2 -u Section --offset 3d --interval 3d
 ```
 
 Creates:
@@ -62,7 +62,7 @@ Creates:
 You have an exam in 2 days and need to revise 30 lectures quickly. Schedule one lecture every 2 hours, skipping bedtime:
 
 ```bash
-taskgun create "Exam Prep" -p 30 -u "Lecture" --offset 2h --interval 2h --skip bedtime
+taskgun create "Exam Prep" -p 30 -u Lecture --offset 2h --interval 2h --skip bedtime
 ```
 
 Creates 30 lectures scheduled every 2 hours starting in 2 hours, automatically skipping 22:00-06:00 (bedtime). With ~16 waking hours per day, you'll complete all 30 lectures in approximately 2 days.
@@ -76,7 +76,7 @@ Creates 30 lectures scheduled every 2 hours starting in 2 hours, automatically s
 - **Bulk task generation** — Create numbered task series with a single command
 - **Flexible skip system** — Skip time windows and days using presets or custom rules
 - **Smart scheduling** — Day-based or hour-based scheduling
-- **Hierarchical tasks** — Support for subsections (e.g., Video 1.1, 1.2, 2.1)
+- **Hierarchical tasks** — Support for subsections (e.g., Part 1.1, 1.2, 2.1)
 - **Configurable presets** — Define custom skip windows in .taskrc
 - **Zero runtime dependencies** — Only requires [Taskwarrior](https://taskwarrior.org) itself
 
@@ -125,7 +125,7 @@ taskgun.skip.longweekend=fri,sat,sun
 After adding these to your `.taskrc`, use them with the `--skip` option:
 
 ```bash
-taskgun create "Project" --offset 2h --interval 3h --skip lunch --skip bedtime
+taskgun create Project --offset 2h --interval 3h --skip lunch --skip bedtime
 ```
 
 **Note:** If you don't add anything to `.taskrc`, the built-in defaults work perfectly:
@@ -143,11 +143,11 @@ taskgun create "Deep Learning" -p 5
 ```
 
 Creates:
-- Video 1
-- Video 2
-- Video 3
-- Video 4
-- Video 5
+- Part 1
+- Part 2
+- Part 3
+- Part 4
+- Part 5
 
 ### Day-based scheduling
 
@@ -211,19 +211,19 @@ taskgun create "Deep Learning" -p 2,3,1 --offset 5d --interval 7d
 ```
 
 Creates:
-- Video 1.1 (today+5d)
-- Video 1.2 (today+12d)
-- Video 2.1 (today+19d)
-- Video 2.2 (today+26d)
-- Video 2.3 (today+33d)
-- Video 3.1 (today+40d)
+- Part 1.1 (today+5d)
+- Part 1.2 (today+12d)
+- Part 2.1 (today+19d)
+- Part 2.2 (today+26d)
+- Part 2.3 (today+33d)
+- Part 3.1 (today+40d)
 
 ### Custom unit names
 
-Use a different prefix instead of "Video":
+Use a different prefix instead of Part:
 
 ```bash
-taskgun create "Deep Learning" -p 2,3,2 -u "Lecture" --offset 3d --interval 4d
+taskgun create "Deep Learning" -p 2,3,2 -u Lecture --offset 3d --interval 4d
 ```
 
 Creates:
