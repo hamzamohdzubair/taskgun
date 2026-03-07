@@ -1,6 +1,6 @@
 [package]
 name = "taskgun"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Hamza Mohd Zubair <hamzamohdzubair@gmail.com>"]
 description = "Extend Taskwarrior with bulk operations and smart scheduling"
