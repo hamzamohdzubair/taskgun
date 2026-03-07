@@ -5,8 +5,10 @@ A Rust CLI that extends [Taskwarrior](https://taskwarrior.org/) with power-user 
 ## Features
 
 - **Bulk task generation** — Create numbered task series with a single command
-- **Smart scheduling** — Day-based or hour-based scheduling with quiet window support
+- **Flexible skip system** — Skip time windows and days using presets or custom rules
+- **Smart scheduling** — Day-based or hour-based scheduling
 - **Hierarchical tasks** — Support for subsections (e.g., Video 1.1, 1.2, 2.1)
+- **Configurable presets** — Define custom skip windows in .taskrc
 - **Zero runtime dependencies** — Only requires Taskwarrior itself
 
 ## Installation
@@ -37,7 +39,7 @@ cargo install --path .
 Create 5 tasks without due dates:
 
 ```bash
-taskgun create -p "Deep Learning" -n 5
+taskgun create "Deep Learning" -n 5
 ```
 
 Creates:
@@ -52,7 +54,7 @@ Creates:
 Create 5 tasks with the first due in 5 days, then every 7 days:
 
 ```bash
-taskgun create -p "Deep Learning" -n 5 --offset 5 --interval 7
+taskgun create "Deep Learning" -n 5 --offset 5d --interval 7d
 ```
 
 Creates tasks due on:
@@ -62,25 +64,50 @@ Creates tasks due on:
 - today+26d
 - today+33d
 
-### Hour-based scheduling with quiet window
+### Hour-based scheduling
 
-Create 5 tasks with the first due in 2 hours, then every 6 hours, avoiding 22:00-06:00:
+Create 5 tasks with the first due in 2 hours, then every 6 hours:
 
 ```bash
-taskgun create -p "Deep Learning" -n 5 --offset 2 --interval 6 --hours
+taskgun create "Deep Learning" -n 5 --offset 2h --interval 6h
 ```
 
-**Quiet window behavior:**
-- Any task landing between 22:00-06:00 is pushed to 06:00
-- Subsequent tasks are scheduled from the pushed time, not the original time
-- This ensures no two tasks share a timestamp and intervals are preserved
+### Skip windows (bedtime, weekends, custom)
+
+Skip specific time windows or days using the `--skip` option (can be used multiple times):
+
+```bash
+# Skip bedtime (22:00-06:00 by default)
+taskgun create "Deep Learning" -n 5 --offset 2h --interval 6h --skip bedtime
+
+# Skip weekends (Saturday and Sunday)
+taskgun create "Deep Learning" -n 5 --offset 1d --interval 1d --skip weekend
+
+# Skip custom time range
+taskgun create "Deep Learning" -n 5 --offset 2h --interval 3h --skip 2100-0600
+
+# Skip specific days
+taskgun create "Deep Learning" -n 5 --offset 1d --interval 1d --skip fri,sat,sun
+
+# Combine multiple skip rules
+taskgun create "Deep Learning" -n 5 --offset 2h --interval 4h --skip bedtime --skip weekend
+```
+
+**Skip behavior:**
+- Tasks landing in skip windows are pushed forward to the next valid time
+- In hour mode, subsequent tasks chain from the pushed time
+- In day mode, each task is calculated independently
+
+**Built-in presets:**
+- `bedtime`: 22:00-06:00 (nighttime hours)
+- `weekend`: Saturday and Sunday
 
 ### Hierarchical tasks with subsections
 
 Create tasks with subsections (2 sections in chapter 1, 3 in chapter 2, 1 in chapter 3):
 
 ```bash
-taskgun create -p "Deep Learning" -s "2,3,1" --offset 5 --interval 7
+taskgun create "Deep Learning" -s "2,3,1" --offset 5d --interval 7d
 ```
 
 Creates:
@@ -96,11 +123,32 @@ Creates:
 Use a different prefix instead of "Video":
 
 ```bash
-taskgun create -p "Deep Learning" -s "2,3,2" -u "Lecture" --offset 3 --interval 4
+taskgun create "Deep Learning" -s "2,3,2" -u "Lecture" --offset 3d --interval 4d
 ```
 
 Creates:
 - Lecture 1.1, Lecture 1.2, Lecture 2.1, etc.
+
+### Custom skip windows in .taskrc
+
+Define your own skip windows in `~/.taskrc`:
+
+```ini
+# Define a lunch break
+taskgun.skip.lunch=1200-1400
+
+# Define a long weekend
+taskgun.skip.longweekend=fri,sat,sun
+
+# Override the bedtime preset
+taskgun.skip.bedtime=2100-0500
+```
+
+Then use them:
+
+```bash
+taskgun create "Deep Learning" --offset 2h --interval 3h --skip lunch --skip bedtime
+```
 
 ## Command Reference
 
@@ -108,21 +156,38 @@ Creates:
 
 Generate a series of numbered Taskwarrior tasks.
 
+**Syntax:**
+```bash
+taskgun create <PROJECT> [OPTIONS]
+```
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `<PROJECT>` | String | Taskwarrior project name (required, positional) |
+
 **Options:**
 
 | Flag | Short | Type | Default | Description |
 |------|-------|------|---------|-------------|
-| `--project` | `-p` | String | required | Taskwarrior project name |
 | `--count` | `-n` | u32 | 10 | Number of chapters |
 | `--unit` | `-u` | String | "Video" | Task name prefix |
-| `--offset` | `-o` | u32 | — | Delay before first task is due |
-| `--interval` | `-i` | u32 | — | Gap between consecutive tasks |
-| `--hours` | | flag | false | Treat offset/interval as hours (not days) |
+| `--offset` | `-o` | String | — | Time until first task (e.g., "5d", "2h") |
+| `--interval` | `-i` | String | — | Time between tasks (e.g., "7d", "6h") |
+| `--skip` | | String | — | Skip window (can be used multiple times) |
 | `--subsections` | `-s` | String | — | Comma-separated subsection counts |
+
+**Skip values:**
+- Named presets: `bedtime`, `weekend`, or custom from .taskrc
+- Time ranges: `2200-0600`, `21:00-06:00`, `1200-1400`
+- Day names: `sat,sun`, `friday,saturday,sunday`, `mon,tue,wed,thu,fri`
 
 **Notes:**
 - `--offset` and `--interval` must be provided together
+- Both must use the same unit (either "d" for days or "h" for hours)
 - When `--subsections` is given, `--count` is inferred from the number of chapters
+- `--skip` can be used multiple times to apply multiple skip rules
 
 ### `taskgun completions`
 
@@ -157,7 +222,7 @@ All tasks are created in your Taskwarrior database and follow your configured wo
 cargo test
 
 # Run with logging
-RUST_LOG=debug cargo run -- create -p "Test" -n 3
+RUST_LOG=debug cargo run -- create "Test" -n 3
 
 # Check code
 cargo clippy -- -D warnings
