@@ -1,0 +1,22 @@
+[package]
+name = "taskgun"
+version = "0.1.0"
+edition = "2021"
+authors = ["Hamza Mohd Zubair <hamzamohdzubair@gmail.com>"]
+description = "Extend Taskwarrior with bulk operations and smart scheduling"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/hamzamohdzubair/taskgun"
+keywords = ["taskwarrior", "cli", "productivity", "tasks"]
+categories = ["command-line-utilities"]
+readme = "README.md"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "cargo"] }
+chrono = "0.4"
+anyhow = "1"
+clap_complete = "4"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"

@@ -1,1 +1,6 @@
-.codemie
+target/
+Cargo.lock
+*.swp
+.DS_Store
+*.tmp
+*~
