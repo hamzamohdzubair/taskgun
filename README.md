@@ -2,6 +2,75 @@
 
 A Rust CLI that extends [Taskwarrior](https://taskwarrior.org/) with power-user workflows: bulk task generation, smart scheduling, and more.
 
+## Why do you need taskgun?
+
+Ever found a YouTube lecture series you want to complete but never quite finish? Started reading a technical book but lost momentum halfway through? **The problem is simple: no deadlines.**
+
+Large sequential projects need structure and accountability. taskgun lets you break down big goals into smaller tasks with automatic deadlines, creating the external pressure you need to maintain momentum.
+
+### Real-world Examples
+
+#### 1. **YouTube Lecture Series** — 10 lectures, one per day
+
+You discover a 10-part lecture series on Machine Learning. Schedule one lecture per day starting in 2 days:
+
+```bash
+taskgun create "ML Course" -n 10 -u "Lecture" --offset 2d --interval 1d
+```
+
+Creates:
+- Lecture 1 (due in 2 days)
+- Lecture 2 (due in 3 days)
+- Lecture 3 (due in 4 days)
+- ... and so on
+
+#### 2. **Technical Book** — 12 chapters, one per week
+
+Reading "Introduction to Algorithms" with 12 chapters. Schedule one chapter per week starting next week:
+
+```bash
+taskgun create "CLRS" -n 12 -u "Chapter" --offset 7d --interval 7d --skip weekend
+```
+
+Creates:
+- Chapter 1 (due in 7 days, skips weekends)
+- Chapter 2 (due in 14 days, skips weekends)
+- Chapter 3 (due in 21 days, skips weekends)
+- ... completing in 12 weeks
+
+#### 3. **Book with Large Chapters** — Breaking down into sections
+
+Reading "Design Patterns" with 3 chapters, but each chapter is too long. Chapter 1 has 3 sections, Chapter 2 has 4 sections, Chapter 3 has 2 sections. Schedule one section every 3 days:
+
+```bash
+taskgun create "Design Patterns" -s "3,4,2" -u "Section" --offset 3d --interval 3d
+```
+
+Creates:
+- Section 1.1 (due in 3 days)
+- Section 1.2 (due in 6 days)
+- Section 1.3 (due in 9 days)
+- Section 2.1 (due in 12 days)
+- Section 2.2 (due in 15 days)
+- Section 2.3 (due in 18 days)
+- Section 2.4 (due in 21 days)
+- Section 3.1 (due in 24 days)
+- Section 3.2 (due in 27 days)
+
+#### 4. **Quick Revision** — 30 lectures in 2 days
+
+You have an exam in 2 days and need to revise 30 lectures quickly. Schedule one lecture every 2 hours, skipping bedtime:
+
+```bash
+taskgun create "Exam Prep" -n 30 -u "Lecture" --offset 2h --interval 2h --skip bedtime
+```
+
+Creates 30 lectures scheduled every 2 hours starting in 2 hours, automatically skipping 22:00-06:00 (bedtime). With ~16 waking hours per day, you'll complete all 30 lectures in approximately 2 days.
+
+**Result:** What seemed like an overwhelming task is now a structured schedule you can follow.
+
+---
+
 ## Features
 
 - **Bulk task generation** — Create numbered task series with a single command
@@ -31,6 +100,37 @@ cargo install --path .
 
 - Taskwarrior 2.6.0 or later
 - Rust 1.70+ (for building from source)
+
+### Configure taskgun (Optional)
+
+taskgun comes with built-in presets (`bedtime` and `weekend`), but you can customize them or add your own in `~/.taskrc`:
+
+```bash
+# Add this to your ~/.taskrc file
+
+# === taskgun Configuration ===
+
+# Customize bedtime hours (default: 2200-0600)
+taskgun.skip.bedtime=2100-0500
+
+# Customize weekend (default: Saturday, Sunday)
+taskgun.skip.weekend=sat,sun
+
+# Add custom skip windows
+taskgun.skip.lunch=1200-1400
+taskgun.skip.meetings=0900-1000,1400-1500
+taskgun.skip.longweekend=fri,sat,sun
+```
+
+After adding these to your `.taskrc`, use them with the `--skip` option:
+
+```bash
+taskgun create "Project" --offset 2h --interval 3h --skip lunch --skip bedtime
+```
+
+**Note:** If you don't add anything to `.taskrc`, the built-in defaults work perfectly:
+- `bedtime`: 22:00-06:00
+- `weekend`: Saturday and Sunday
 
 ## Usage
 
