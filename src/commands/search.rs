@@ -21,14 +21,23 @@ pub fn execute(keyword: &str) -> Result<()> {
         .output()
         .context("Failed to execute task command")?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Taskwarrior command failed: {}", stderr);
+    // Print stdout (task list)
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if !stdout.is_empty() {
+        print!("{}", stdout);
     }
 
-    // Print the output directly
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    print!("{}", stdout);
+    // Check stderr for messages
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !stderr.is_empty() {
+        // "No matches" is a normal result, not an error - print it normally
+        if stderr.contains("No matches") {
+            println!("No matches.");
+        } else {
+            // Other errors should be printed to stderr
+            eprint!("{}", stderr);
+        }
+    }
 
     Ok(())
 }
