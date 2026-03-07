@@ -15,7 +15,7 @@ Large sequential projects need structure and accountability. taskgun lets you br
 You discover a 10-part lecture series on Machine Learning. Schedule one lecture per day starting in 2 days:
 
 ```bash
-taskgun create "ML Course" -n 10 -u "Lecture" --offset 2d --interval 1d
+taskgun create "ML Course" -p 10 -u "Lecture" --offset 2d --interval 1d
 ```
 
 Creates:
@@ -29,7 +29,7 @@ Creates:
 Reading "Introduction to Algorithms" with 12 chapters. Schedule one chapter per week starting next week:
 
 ```bash
-taskgun create "CLRS" -n 12 -u "Chapter" --offset 7d --interval 7d --skip weekend
+taskgun create "CLRS" -p 12 -u "Chapter" --offset 7d --interval 7d --skip weekend
 ```
 
 Creates:
@@ -43,7 +43,7 @@ Creates:
 Reading "Design Patterns" with 3 chapters, but each chapter is too long. Chapter 1 has 3 sections, Chapter 2 has 4 sections, Chapter 3 has 2 sections. Schedule one section every 3 days:
 
 ```bash
-taskgun create "Design Patterns" -s "3,4,2" -u "Section" --offset 3d --interval 3d
+taskgun create "Design Patterns" -p 3,4,2 -u "Section" --offset 3d --interval 3d
 ```
 
 Creates:
@@ -62,7 +62,7 @@ Creates:
 You have an exam in 2 days and need to revise 30 lectures quickly. Schedule one lecture every 2 hours, skipping bedtime:
 
 ```bash
-taskgun create "Exam Prep" -n 30 -u "Lecture" --offset 2h --interval 2h --skip bedtime
+taskgun create "Exam Prep" -p 30 -u "Lecture" --offset 2h --interval 2h --skip bedtime
 ```
 
 Creates 30 lectures scheduled every 2 hours starting in 2 hours, automatically skipping 22:00-06:00 (bedtime). With ~16 waking hours per day, you'll complete all 30 lectures in approximately 2 days.
@@ -139,7 +139,7 @@ taskgun create "Project" --offset 2h --interval 3h --skip lunch --skip bedtime
 Create 5 tasks without due dates:
 
 ```bash
-taskgun create "Deep Learning" -n 5
+taskgun create "Deep Learning" -p 5
 ```
 
 Creates:
@@ -154,7 +154,7 @@ Creates:
 Create 5 tasks with the first due in 5 days, then every 7 days:
 
 ```bash
-taskgun create "Deep Learning" -n 5 --offset 5d --interval 7d
+taskgun create "Deep Learning" -p 5 --offset 5d --interval 7d
 ```
 
 Creates tasks due on:
@@ -169,7 +169,7 @@ Creates tasks due on:
 Create 5 tasks with the first due in 2 hours, then every 6 hours:
 
 ```bash
-taskgun create "Deep Learning" -n 5 --offset 2h --interval 6h
+taskgun create "Deep Learning" -p 5 --offset 2h --interval 6h
 ```
 
 ### Skip windows (bedtime, weekends, custom)
@@ -178,19 +178,19 @@ Skip specific time windows or days using the `--skip` option (can be used multip
 
 ```bash
 # Skip bedtime (22:00-06:00 by default)
-taskgun create "Deep Learning" -n 5 --offset 2h --interval 6h --skip bedtime
+taskgun create "Deep Learning" -p 5 --offset 2h --interval 6h --skip bedtime
 
 # Skip weekends (Saturday and Sunday)
-taskgun create "Deep Learning" -n 5 --offset 1d --interval 1d --skip weekend
+taskgun create "Deep Learning" -p 5 --offset 1d --interval 1d --skip weekend
 
 # Skip custom time range
-taskgun create "Deep Learning" -n 5 --offset 2h --interval 3h --skip 2100-0600
+taskgun create "Deep Learning" -p 5 --offset 2h --interval 3h --skip 2100-0600
 
 # Skip specific days
-taskgun create "Deep Learning" -n 5 --offset 1d --interval 1d --skip fri,sat,sun
+taskgun create "Deep Learning" -p 5 --offset 1d --interval 1d --skip fri,sat,sun
 
 # Combine multiple skip rules
-taskgun create "Deep Learning" -n 5 --offset 2h --interval 4h --skip bedtime --skip weekend
+taskgun create "Deep Learning" -p 5 --offset 2h --interval 4h --skip bedtime --skip weekend
 ```
 
 **Skip behavior:**
@@ -207,7 +207,7 @@ taskgun create "Deep Learning" -n 5 --offset 2h --interval 4h --skip bedtime --s
 Create tasks with subsections (2 sections in chapter 1, 3 in chapter 2, 1 in chapter 3):
 
 ```bash
-taskgun create "Deep Learning" -s "2,3,1" --offset 5d --interval 7d
+taskgun create "Deep Learning" -p 2,3,1 --offset 5d --interval 7d
 ```
 
 Creates:
@@ -223,7 +223,7 @@ Creates:
 Use a different prefix instead of "Video":
 
 ```bash
-taskgun create "Deep Learning" -s "2,3,2" -u "Lecture" --offset 3d --interval 4d
+taskgun create "Deep Learning" -p 2,3,2 -u "Lecture" --offset 3d --interval 4d
 ```
 
 Creates:
@@ -269,14 +269,17 @@ taskgun create <PROJECT> [OPTIONS]
 
 **Options:**
 
-| Flag | Short | Type | Default | Description |
-|------|-------|------|---------|-------------|
-| `--count` | `-n` | u32 | 10 | Number of chapters |
-| `--unit` | `-u` | String | "Video" | Task name prefix |
-| `--offset` | `-o` | String | — | Time until first task (e.g., "5d", "2h") |
-| `--interval` | `-i` | String | — | Time between tasks (e.g., "7d", "6h") |
-| `--skip` | | String | — | Skip window (can be used multiple times) |
-| `--subsections` | `-s` | String | — | Comma-separated subsection counts |
+| Flag | Short | Type | Required | Description |
+|------|-------|------|----------|-------------|
+| `--parts` | `-p` | String | Yes | Number of tasks (e.g., "10") or subsection structure (e.g., "2,3,1") |
+| `--unit` | `-u` | String | No | Task name prefix (default: "Video") |
+| `--offset` | `-o` | String | No | Time until first task (e.g., "5d", "2h") |
+| `--interval` | `-i` | String | No | Time between tasks (e.g., "7d", "6h") |
+| `--skip` | | String | No | Skip window (can be used multiple times) |
+
+**Parts format:**
+- Simple number: `10`, `30`, `12` (creates numbered tasks: Video 1, Video 2, ...)
+- Subsections: `2,3,1`, `3,4,2` (creates hierarchical: Video 1.1, 1.2, 2.1, ...)
 
 **Skip values:**
 - Named presets: `bedtime`, `weekend`, or custom from .taskrc
@@ -284,10 +287,11 @@ taskgun create <PROJECT> [OPTIONS]
 - Day names: `sat,sun`, `friday,saturday,sunday`, `mon,tue,wed,thu,fri`
 
 **Notes:**
+- `--parts` is required (no default value)
 - `--offset` and `--interval` must be provided together
 - Both must use the same unit (either "d" for days or "h" for hours)
-- When `--subsections` is given, `--count` is inferred from the number of chapters
 - `--skip` can be used multiple times to apply multiple skip rules
+- Quotes are optional for parts: `-p 2,3,1` works the same as `-p "2,3,1"`
 
 ### `taskgun completions`
 

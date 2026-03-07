@@ -12,9 +12,9 @@ pub struct CreateArgs {
     #[arg(required = true)]
     project: String,
 
-    /// Number of chapters (default: 10, overridden by subsections if present)
-    #[arg(short = 'n', long, default_value = "10")]
-    count: u32,
+    /// Number of tasks or subsection structure (e.g., "10" or "2,3,1" for hierarchical)
+    #[arg(short = 'p', long, required = true)]
+    parts: String,
 
     /// Task name prefix (default: "Video")
     #[arg(short = 'u', long, default_value = "Video")]
@@ -31,10 +31,6 @@ pub struct CreateArgs {
     /// Skip windows - can be used multiple times. Use presets (bedtime, weekend), time ranges (2100-0600), or day names (fri,sat,sun)
     #[arg(long = "skip")]
     skip: Vec<String>,
-
-    /// Comma-separated subsection counts per chapter (e.g., "2,3,1")
-    #[arg(short = 's', long)]
-    subsections: Option<String>,
 }
 
 /// Duration with a value and unit (days or hours)
@@ -131,10 +127,12 @@ fn parse_subsections(s: &str) -> Result<Vec<(usize, usize)>> {
 /// Generate task names based on arguments
 fn generate_task_names(args: &CreateArgs) -> Result<Vec<TaskName>> {
     let mut names = Vec::new();
+    let parts_str = args.parts.trim();
 
-    if let Some(ref subsections_str) = args.subsections {
+    // Determine if parts is a simple number or subsections (contains comma)
+    if parts_str.contains(',') {
         // Hierarchical: "Video 1.1", "Video 1.2", "Video 2.1", ...
-        let subsections = parse_subsections(subsections_str)?;
+        let subsections = parse_subsections(parts_str)?;
 
         for (chapter, section_count) in subsections {
             for section in 1..=section_count {
@@ -146,9 +144,17 @@ fn generate_task_names(args: &CreateArgs) -> Result<Vec<TaskName>> {
         }
     } else {
         // Simple: "Video 1", "Video 2", ...
-        for chapter in 1..=args.count {
+        let count: usize = parts_str
+            .parse()
+            .context(format!("Invalid parts value '{}'. Must be a number (e.g., '10') or subsections (e.g., '2,3,1')", parts_str))?;
+
+        if count == 0 {
+            anyhow::bail!("Parts count cannot be zero");
+        }
+
+        for chapter in 1..=count {
             names.push(TaskName {
-                chapter: chapter as usize,
+                chapter,
                 section: None,
             });
         }
@@ -337,12 +343,11 @@ mod tests {
     fn test_generate_task_names_simple() {
         let args = CreateArgs {
             project: "Test".to_string(),
-            count: 3,
+            parts: "3".to_string(),
             unit: "Video".to_string(),
             offset: None,
             interval: None,
             skip: vec![],
-            subsections: None,
         };
 
         let names = generate_task_names(&args).unwrap();
@@ -356,12 +361,11 @@ mod tests {
     fn test_generate_task_names_hierarchical() {
         let args = CreateArgs {
             project: "Test".to_string(),
-            count: 10, // Should be ignored when subsections present
+            parts: "2,3,1".to_string(),
             unit: "Video".to_string(),
             offset: None,
             interval: None,
             skip: vec![],
-            subsections: Some("2,3,1".to_string()),
         };
 
         let names = generate_task_names(&args).unwrap();
@@ -372,5 +376,28 @@ mod tests {
         assert_eq!(names[3].format("Video"), "Video 2.2");
         assert_eq!(names[4].format("Video"), "Video 2.3");
         assert_eq!(names[5].format("Video"), "Video 3.1");
+    }
+
+    #[test]
+    fn test_generate_task_names_invalid() {
+        let args = CreateArgs {
+            project: "Test".to_string(),
+            parts: "0".to_string(),
+            unit: "Video".to_string(),
+            offset: None,
+            interval: None,
+            skip: vec![],
+        };
+        assert!(generate_task_names(&args).is_err());
+
+        let args = CreateArgs {
+            project: "Test".to_string(),
+            parts: "abc".to_string(),
+            unit: "Video".to_string(),
+            offset: None,
+            interval: None,
+            skip: vec![],
+        };
+        assert!(generate_task_names(&args).is_err());
     }
 }

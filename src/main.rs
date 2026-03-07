@@ -15,12 +15,12 @@ mod taskwarrior;
     about = "A gun to shoot tasks for Taskwarrior",
     long_about = "Extend Taskwarrior with bulk operations and smart scheduling.\n\n\
                   Examples:\n  \
-                  taskgun create \"Deep Learning\" -n 5\n  \
-                  taskgun create \"Deep Learning\" -n 5 --offset 5d --interval 7d\n  \
-                  taskgun create \"Deep Learning\" -s \"2,3,1\" --offset 5d --interval 7d --skip weekend\n  \
-                  taskgun create \"Deep Learning\" -n 5 --offset 2h --interval 6h --skip bedtime\n  \
-                  taskgun create \"Deep Learning\" -n 5 --offset 1d --interval 1d --skip weekend --skip bedtime\n  \
-                  taskgun create \"Deep Learning\" -n 5 --offset 2h --interval 3h --skip 2100-0600 --skip sat,sun"
+                  taskgun create \"Deep Learning\" -p 5\n  \
+                  taskgun create \"Deep Learning\" -p 5 --offset 5d --interval 7d\n  \
+                  taskgun create \"Deep Learning\" -p 2,3,1 --offset 5d --interval 7d --skip weekend\n  \
+                  taskgun create \"Deep Learning\" -p 5 --offset 2h --interval 6h --skip bedtime\n  \
+                  taskgun create \"Deep Learning\" -p 5 --offset 1d --interval 1d --skip weekend --skip bedtime\n  \
+                  taskgun create \"Deep Learning\" -p 30 --offset 2h --interval 2h --skip bedtime"
 )]
 struct Cli {
     #[command(subcommand)]
