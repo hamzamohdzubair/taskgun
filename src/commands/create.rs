@@ -3,12 +3,13 @@ use chrono::Local;
 use clap::Args;
 
 use crate::scheduling::{format_for_taskwarrior, format_relative_days, ScheduleConfig};
+use crate::skip::{SkipPresets, SkipRule};
 use crate::taskwarrior;
 
 #[derive(Args, Debug)]
 pub struct CreateArgs {
-    /// Project name (required)
-    #[arg(short = 'p', long, required = true)]
+    /// Project name
+    #[arg(required = true)]
     project: String,
 
     /// Number of chapters (default: 10, overridden by subsections if present)
@@ -19,21 +20,69 @@ pub struct CreateArgs {
     #[arg(short = 'u', long, default_value = "Video")]
     unit: String,
 
-    /// Days (or hours if --hours) until first task is due
+    /// Time until first task is due (e.g., "5d" for 5 days, "2h" for 2 hours)
     #[arg(short = 'o', long, requires = "interval")]
-    offset: Option<u32>,
+    offset: Option<String>,
 
-    /// Days (or hours if --hours) between each task
+    /// Time between each task (e.g., "7d" for 7 days, "6h" for 6 hours)
     #[arg(short = 'i', long, requires = "offset")]
-    interval: Option<u32>,
+    interval: Option<String>,
 
-    /// Treat --offset and --interval as hours, skipping 22:00-06:00 quiet window
-    #[arg(long)]
-    hours: bool,
+    /// Skip windows - can be used multiple times. Use presets (bedtime, weekend), time ranges (2100-0600), or day names (fri,sat,sun)
+    #[arg(long = "skip")]
+    skip: Vec<String>,
 
     /// Comma-separated subsection counts per chapter (e.g., "2,3,1")
     #[arg(short = 's', long)]
     subsections: Option<String>,
+}
+
+/// Duration with a value and unit (days or hours)
+#[derive(Debug, Clone, Copy)]
+struct Duration {
+    value: u32,
+    unit: DurationUnit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum DurationUnit {
+    Days,
+    Hours,
+}
+
+impl Duration {
+    /// Parse a duration string like "5d" or "2h"
+    fn parse(s: &str) -> Result<Self> {
+        let s = s.trim();
+        if s.is_empty() {
+            anyhow::bail!("Duration string is empty");
+        }
+
+        // Split into value and unit
+        let (value_str, unit_str) = if s.ends_with('d') || s.ends_with('D') {
+            (&s[..s.len() - 1], "d")
+        } else if s.ends_with('h') || s.ends_with('H') {
+            (&s[..s.len() - 1], "h")
+        } else {
+            anyhow::bail!(
+                "Duration must end with 'd' (days) or 'h' (hours). Got: '{}'",
+                s
+            );
+        };
+
+        let value: u32 = value_str
+            .trim()
+            .parse()
+            .context(format!("Invalid duration value: '{}'", value_str))?;
+
+        let unit = match unit_str {
+            "d" => DurationUnit::Days,
+            "h" => DurationUnit::Hours,
+            _ => unreachable!(),
+        };
+
+        Ok(Duration { value, unit })
+    }
 }
 
 /// A task name, either simple ("Video 1") or hierarchical ("Video 1.2")
@@ -117,18 +166,52 @@ pub fn execute(args: CreateArgs) -> Result<()> {
     let total_tasks = task_names.len();
 
     // Calculate schedule if offset/interval provided
-    let due_dates = if let (Some(offset), Some(interval)) = (args.offset, args.interval) {
+    let due_dates = if let (Some(offset_str), Some(interval_str)) =
+        (args.offset.as_ref(), args.interval.as_ref())
+    {
+        // Parse durations
+        let offset_duration = Duration::parse(offset_str)
+            .context(format!("Invalid offset: '{}'", offset_str))?;
+        let interval_duration = Duration::parse(interval_str)
+            .context(format!("Invalid interval: '{}'", interval_str))?;
+
+        // Both must have the same unit
+        if offset_duration.unit != interval_duration.unit {
+            anyhow::bail!(
+                "Offset and interval must use the same unit. Got offset: '{}', interval: '{}'",
+                offset_str,
+                interval_str
+            );
+        }
+
+        let use_hours = offset_duration.unit == DurationUnit::Hours;
+
+        // Parse skip rules
+        let mut presets = SkipPresets::with_defaults();
+        if let Err(e) = presets.load_from_taskrc() {
+            eprintln!("Warning: Could not load .taskrc: {}", e);
+        }
+
+        let mut skip_rules: Vec<SkipRule> = Vec::new();
+        for skip_arg in &args.skip {
+            let rules = presets
+                .parse_skip_arg(skip_arg)
+                .context(format!("Invalid skip argument: '{}'", skip_arg))?;
+            skip_rules.extend(rules);
+        }
+
         let config = ScheduleConfig {
             base_time: Local::now(),
-            offset,
-            interval,
-            use_hours: args.hours,
+            offset: offset_duration.value,
+            interval: interval_duration.value,
+            use_hours,
+            skip_rules,
         };
 
         let scheduled = config.schedule_tasks(total_tasks)?;
 
         // Convert to Taskwarrior format
-        let dates: Vec<String> = if args.hours {
+        let dates: Vec<String> = if use_hours {
             scheduled
                 .iter()
                 .map(|st| format_for_taskwarrior(&st.resolved, true))
@@ -160,17 +243,16 @@ pub fn execute(args: CreateArgs) -> Result<()> {
         total_tasks, args.project
     );
 
-    if let (Some(offset), Some(interval)) = (args.offset, args.interval) {
-        if args.hours {
-            println!(
-                "  Due dates: now+{}h for first, then every {}h (quiet window 2200-0600 shifts schedule forward)",
-                offset, interval
-            );
-        } else {
-            println!(
-                "  Due dates: today+{}d for first, then every {}d per section",
-                offset, interval
-            );
+    if let (Some(offset_str), Some(interval_str)) =
+        (args.offset.as_ref(), args.interval.as_ref())
+    {
+        println!(
+            "  Due dates: now+{} for first, then every {}",
+            offset_str, interval_str
+        );
+
+        if !args.skip.is_empty() {
+            println!("  Skip rules: {}", args.skip.join(", "));
         }
     }
 
@@ -180,6 +262,35 @@ pub fn execute(args: CreateArgs) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_duration_parse() {
+        let dur = Duration::parse("5d").unwrap();
+        assert_eq!(dur.value, 5);
+        assert_eq!(dur.unit, DurationUnit::Days);
+
+        let dur = Duration::parse("2h").unwrap();
+        assert_eq!(dur.value, 2);
+        assert_eq!(dur.unit, DurationUnit::Hours);
+
+        let dur = Duration::parse("10D").unwrap();
+        assert_eq!(dur.value, 10);
+        assert_eq!(dur.unit, DurationUnit::Days);
+
+        let dur = Duration::parse("24H").unwrap();
+        assert_eq!(dur.value, 24);
+        assert_eq!(dur.unit, DurationUnit::Hours);
+    }
+
+    #[test]
+    fn test_duration_parse_invalid() {
+        assert!(Duration::parse("").is_err());
+        assert!(Duration::parse("5").is_err());
+        assert!(Duration::parse("d5").is_err());
+        assert!(Duration::parse("5x").is_err());
+        assert!(Duration::parse("abc").is_err());
+        assert!(Duration::parse("-5d").is_err());
+    }
 
     #[test]
     fn test_parse_subsections() {
@@ -230,7 +341,7 @@ mod tests {
             unit: "Video".to_string(),
             offset: None,
             interval: None,
-            hours: false,
+            skip: vec![],
             subsections: None,
         };
 
@@ -249,7 +360,7 @@ mod tests {
             unit: "Video".to_string(),
             offset: None,
             interval: None,
-            hours: false,
+            skip: vec![],
             subsections: Some("2,3,1".to_string()),
         };
 

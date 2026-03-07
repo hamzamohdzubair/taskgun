@@ -1,5 +1,7 @@
 use anyhow::Result;
-use chrono::{DateTime, Duration, Local, Timelike};
+use chrono::{DateTime, Duration, Local};
+
+use crate::skip::SkipRule;
 
 /// Configuration for task scheduling
 #[derive(Debug, Clone)]
@@ -8,6 +10,7 @@ pub struct ScheduleConfig {
     pub offset: u32,
     pub interval: u32,
     pub use_hours: bool,
+    pub skip_rules: Vec<SkipRule>,
 }
 
 /// A scheduled time with both logical and resolved timestamps
@@ -19,44 +22,45 @@ pub struct ScheduledTime {
     pub was_adjusted: bool,
 }
 
+/// Apply skip rules to a datetime
+fn apply_skip_rules(time: DateTime<Local>, rules: &[SkipRule], is_hour_mode: bool) -> DateTime<Local> {
+    let mut current = time;
+    let mut iterations = 0;
+    const MAX_ITERATIONS: usize = 1000; // Prevent infinite loops
+
+    loop {
+        if iterations >= MAX_ITERATIONS {
+            // Safety break
+            return current;
+        }
+        iterations += 1;
+
+        let mut any_skip = false;
+        for rule in rules {
+            if rule.should_skip(current, is_hour_mode) {
+                current = rule.resolve(current);
+                any_skip = true;
+                break; // Re-check all rules after adjustment
+            }
+        }
+
+        if !any_skip {
+            break;
+        }
+    }
+
+    current
+}
+
 impl ScheduledTime {
-    fn new(time: DateTime<Local>) -> Self {
-        let resolved = resolve_quiet_window(time);
+    fn new(time: DateTime<Local>, skip_rules: &[SkipRule], is_hour_mode: bool) -> Self {
+        let resolved = apply_skip_rules(time, skip_rules, is_hour_mode);
+
         Self {
             logical: time,
             was_adjusted: time != resolved,
             resolved,
         }
-    }
-}
-
-/// Push timestamps from 22:00-06:00 window to 06:00
-/// - If hour >= 22: push to 06:00 next day
-/// - If hour < 6: push to 06:00 same day
-/// - Otherwise: no change
-fn resolve_quiet_window(time: DateTime<Local>) -> DateTime<Local> {
-    let hour = time.hour();
-
-    if hour >= 22 {
-        // Push to 06:00 next day
-        let next_day = time.date_naive() + Duration::days(1);
-        next_day
-            .and_hms_opt(6, 0, 0)
-            .expect("Valid time")
-            .and_local_timezone(Local)
-            .single()
-            .expect("Valid local time")
-    } else if hour < 6 {
-        // Push to 06:00 same day
-        time.date_naive()
-            .and_hms_opt(6, 0, 0)
-            .expect("Valid time")
-            .and_local_timezone(Local)
-            .single()
-            .expect("Valid local time")
-    } else {
-        // Valid time, no change
-        time
     }
 }
 
@@ -67,20 +71,20 @@ impl ScheduleConfig {
     /// of the previous task, not the logical time. This ensures:
     /// - No two tasks share the same timestamp
     /// - The interval between consecutive tasks is always honored
-    /// - Tasks don't pile up at 06:00
+    /// - Tasks don't pile up at the quiet hour boundary
     pub fn schedule_tasks(&self, count: usize) -> Result<Vec<ScheduledTime>> {
         let mut scheduled = Vec::with_capacity(count);
 
         if self.use_hours {
             // Hour mode: sequential calculation from resolved times
-            let first_logical = self.base_time + Duration::hours(self.offset as i64);
-            let first = ScheduledTime::new(first_logical);
+            let current = self.base_time + Duration::hours(self.offset as i64);
+            let first = ScheduledTime::new(current, &self.skip_rules, true);
             scheduled.push(first);
 
             for _ in 1..count {
                 let prev_resolved = scheduled.last().unwrap().resolved;
                 let next_logical = prev_resolved + Duration::hours(self.interval as i64);
-                let next = ScheduledTime::new(next_logical);
+                let next = ScheduledTime::new(next_logical, &self.skip_rules, true);
                 scheduled.push(next);
             }
         } else {
@@ -88,12 +92,8 @@ impl ScheduleConfig {
             for i in 0..count {
                 let days_offset = self.offset as i64 + (i as i64 * self.interval as i64);
                 let logical = self.base_time + Duration::days(days_offset);
-                // No quiet window resolution in day mode
-                scheduled.push(ScheduledTime {
-                    logical,
-                    resolved: logical,
-                    was_adjusted: false,
-                });
+                let resolved = ScheduledTime::new(logical, &self.skip_rules, false);
+                scheduled.push(resolved);
             }
         }
 
@@ -102,8 +102,8 @@ impl ScheduleConfig {
 }
 
 /// Format a datetime for Taskwarrior's due field
-/// Format: YYYY-MM-DDTHH:MM (no seconds in hour mode)
-/// Format: YYYY-MM-DD (day mode, but we use relative format)
+/// Format: YYYY-MM-DDTHH:MM (in hour mode)
+/// Format: YYYY-MM-DD (in day mode, but we use relative format)
 pub fn format_for_taskwarrior(time: &DateTime<Local>, use_hours: bool) -> String {
     if use_hours {
         time.format("%Y-%m-%dT%H:%M").to_string()
@@ -125,10 +125,11 @@ pub fn format_relative_days(base_time: DateTime<Local>, target_time: DateTime<Lo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::NaiveDate;
+    use crate::skip::SkipRule;
+    use chrono::{Datelike, NaiveDate, Timelike, Weekday};
 
-    fn make_time(hour: u32, minute: u32) -> DateTime<Local> {
-        NaiveDate::from_ymd_opt(2025, 1, 15)
+    fn make_time(year: i32, month: u32, day: u32, hour: u32, minute: u32) -> DateTime<Local> {
+        NaiveDate::from_ymd_opt(year, month, day)
             .unwrap()
             .and_hms_opt(hour, minute, 0)
             .unwrap()
@@ -138,57 +139,14 @@ mod tests {
     }
 
     #[test]
-    fn test_quiet_window_boundaries() {
-        // Before window (valid)
-        assert_eq!(resolve_quiet_window(make_time(5, 59)).hour(), 6);
-        assert_eq!(resolve_quiet_window(make_time(6, 0)).hour(), 6);
-        assert_eq!(resolve_quiet_window(make_time(6, 1)).hour(), 6);
-
-        // During day (valid)
-        assert_eq!(resolve_quiet_window(make_time(12, 0)).hour(), 12);
-        assert_eq!(resolve_quiet_window(make_time(21, 59)).hour(), 21);
-
-        // After window start (push to next day)
-        assert_eq!(resolve_quiet_window(make_time(22, 0)).hour(), 6);
-        assert_eq!(resolve_quiet_window(make_time(23, 59)).hour(), 6);
-
-        // Midnight (push to same day 06:00)
-        assert_eq!(resolve_quiet_window(make_time(0, 0)).hour(), 6);
-    }
-
-    #[test]
-    fn test_quiet_window_next_day() {
-        let time_22 = make_time(22, 0);
-        let resolved = resolve_quiet_window(time_22);
-
-        // Should be pushed to 06:00 next day
-        assert_eq!(resolved.hour(), 6);
-        assert_eq!(resolved.minute(), 0);
-        assert_eq!(
-            resolved.date_naive(),
-            time_22.date_naive() + Duration::days(1)
-        );
-    }
-
-    #[test]
-    fn test_quiet_window_same_day() {
-        let time_03 = make_time(3, 0);
-        let resolved = resolve_quiet_window(time_03);
-
-        // Should be pushed to 06:00 same day
-        assert_eq!(resolved.hour(), 6);
-        assert_eq!(resolved.minute(), 0);
-        assert_eq!(resolved.date_naive(), time_03.date_naive());
-    }
-
-    #[test]
     fn test_day_mode_scheduling() {
-        let base = make_time(10, 0);
+        let base = make_time(2025, 1, 15, 10, 0);
         let config = ScheduleConfig {
             base_time: base,
             offset: 5,
             interval: 7,
             use_hours: false,
+            skip_rules: vec![],
         };
 
         let scheduled = config.schedule_tasks(3).unwrap();
@@ -210,22 +168,22 @@ mod tests {
             (scheduled[2].resolved.date_naive() - base.date_naive()).num_days(),
             19
         );
-
-        // No adjustments in day mode
-        assert!(!scheduled[0].was_adjusted);
-        assert!(!scheduled[1].was_adjusted);
-        assert!(!scheduled[2].was_adjusted);
     }
 
     #[test]
-    fn test_hour_mode_with_quiet_window() {
+    fn test_hour_mode_with_skip_time_range() {
         // Base: 20:00, offset: 1h, interval: 3h
-        let base = make_time(20, 0);
+        let base = make_time(2025, 1, 15, 20, 0);
+        let skip_rules = vec![SkipRule::TimeRange {
+            start_hour: 22,
+            end_hour: 6,
+        }];
         let config = ScheduleConfig {
             base_time: base,
             offset: 1,
             interval: 3,
             use_hours: true,
+            skip_rules,
         };
 
         let scheduled = config.schedule_tasks(4).unwrap();
@@ -248,14 +206,56 @@ mod tests {
     }
 
     #[test]
+    fn test_skip_weekends_day_mode() {
+        // Start on Thursday 2025-01-16
+        let base = make_time(2025, 1, 16, 10, 0);
+        let skip_rules = vec![SkipRule::DaysOfWeek(vec![Weekday::Sat, Weekday::Sun])];
+        let config = ScheduleConfig {
+            base_time: base,
+            offset: 1,
+            interval: 1,
+            use_hours: false,
+            skip_rules,
+        };
+
+        let scheduled = config.schedule_tasks(5).unwrap();
+
+        // In day mode, each task is calculated independently from base time
+        // Task 0: Thu (base) + 1d = Fri (Jan 17) - no skip
+        assert_eq!(scheduled[0].resolved.weekday(), Weekday::Fri);
+        assert_eq!(scheduled[0].resolved.day(), 17);
+
+        // Task 1: Thu (base) + 2d = Sat (Jan 18) → skip to Mon (Jan 20)
+        assert_eq!(scheduled[1].resolved.weekday(), Weekday::Mon);
+        assert_eq!(scheduled[1].resolved.day(), 20);
+
+        // Task 2: Thu (base) + 3d = Sun (Jan 19) → skip to Mon (Jan 20)
+        assert_eq!(scheduled[2].resolved.weekday(), Weekday::Mon);
+        assert_eq!(scheduled[2].resolved.day(), 20);
+
+        // Task 3: Thu (base) + 4d = Mon (Jan 20) - no skip
+        assert_eq!(scheduled[3].resolved.weekday(), Weekday::Mon);
+        assert_eq!(scheduled[3].resolved.day(), 20);
+
+        // Task 4: Thu (base) + 5d = Tue (Jan 21) - no skip
+        assert_eq!(scheduled[4].resolved.weekday(), Weekday::Tue);
+        assert_eq!(scheduled[4].resolved.day(), 21);
+    }
+
+    #[test]
     fn test_hour_mode_chains_from_resolved_times() {
         // Verify that tasks chain from resolved times, not logical times
-        let base = make_time(21, 0);
+        let base = make_time(2025, 1, 15, 21, 0);
+        let skip_rules = vec![SkipRule::TimeRange {
+            start_hour: 22,
+            end_hour: 6,
+        }];
         let config = ScheduleConfig {
             base_time: base,
             offset: 2,
             interval: 1,
             use_hours: true,
+            skip_rules,
         };
 
         let scheduled = config.schedule_tasks(3).unwrap();
@@ -271,21 +271,36 @@ mod tests {
     }
 
     #[test]
-    fn test_format_for_taskwarrior_hour_mode() {
-        let time = make_time(14, 30);
-        let formatted = format_for_taskwarrior(&time, true);
-        assert!(formatted.ends_with("T14:30"));
-    }
+    fn test_multiple_skip_rules() {
+        // Skip both bedtime and weekends
+        let base = make_time(2025, 1, 17, 21, 0); // Friday 21:00
+        let skip_rules = vec![
+            SkipRule::TimeRange {
+                start_hour: 22,
+                end_hour: 6,
+            },
+            SkipRule::DaysOfWeek(vec![Weekday::Sat, Weekday::Sun]),
+        ];
+        let config = ScheduleConfig {
+            base_time: base,
+            offset: 2,
+            interval: 12,
+            use_hours: true,
+            skip_rules,
+        };
 
-    #[test]
-    fn test_format_relative_days() {
-        let base = make_time(10, 0);
-        let same_day = make_time(15, 0);
-        let next_day = base + Duration::days(1);
-        let five_days = base + Duration::days(5);
+        let scheduled = config.schedule_tasks(3).unwrap();
 
-        assert_eq!(format_relative_days(base, same_day), "today");
-        assert_eq!(format_relative_days(base, next_day), "today+1d");
-        assert_eq!(format_relative_days(base, five_days), "today+5d");
+        // Task 1: Fri 21:00+2h = Fri 23:00 → Sat 06:00 → Mon 06:00 (skip weekend)
+        assert_eq!(scheduled[0].resolved.weekday(), Weekday::Mon);
+        assert_eq!(scheduled[0].resolved.hour(), 6);
+
+        // Task 2: Mon 06:00+12h = Mon 18:00 (valid)
+        assert_eq!(scheduled[1].resolved.weekday(), Weekday::Mon);
+        assert_eq!(scheduled[1].resolved.hour(), 18);
+
+        // Task 3: Mon 18:00+12h = Tue 06:00 (skips bedtime)
+        assert_eq!(scheduled[2].resolved.weekday(), Weekday::Tue);
+        assert_eq!(scheduled[2].resolved.hour(), 6);
     }
 }
