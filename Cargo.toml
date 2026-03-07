@@ -1,9 +1,9 @@
 [package]
 name = "taskgun"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 authors = ["Hamza Mohd Zubair <hamzamohdzubair@gmail.com>"]
-description = "Extend Taskwarrior with bulk operations and smart scheduling"
+description = "A rusty gun for our taskwarrior - bulk task generation and smart scheduling"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/hamzamohdzubair/taskgun"
 keywords = ["taskwarrior", "cli", "productivity", "tasks"]

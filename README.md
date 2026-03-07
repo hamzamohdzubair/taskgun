@@ -1,6 +1,6 @@
-# taskgun — A gun to shoot tasks for Taskwarrior
+# taskgun — A rusty gun for our [taskwarrior](https://taskwarrior.org)
 
-A Rust CLI that extends [Taskwarrior](https://taskwarrior.org/) with power-user workflows: bulk task generation, smart scheduling, and more.
+A rusty gun for our [taskwarrior](https://taskwarrior.org) - bulk task generation, smart scheduling, and deadline-driven productivity.
 
 ## Why do you need taskgun?
 
@@ -78,7 +78,7 @@ Creates 30 lectures scheduled every 2 hours starting in 2 hours, automatically s
 - **Smart scheduling** — Day-based or hour-based scheduling
 - **Hierarchical tasks** — Support for subsections (e.g., Video 1.1, 1.2, 2.1)
 - **Configurable presets** — Define custom skip windows in .taskrc
-- **Zero runtime dependencies** — Only requires Taskwarrior itself
+- **Zero runtime dependencies** — Only requires [Taskwarrior](https://taskwarrior.org) itself
 
 ## Installation
 
@@ -98,7 +98,7 @@ cargo install --path .
 
 ### Requirements
 
-- Taskwarrior 2.6.0 or later
+- [Taskwarrior](https://taskwarrior.org) 2.6.0 or later
 - Rust 1.70+ (for building from source)
 
 ### Configure taskgun (Optional)
@@ -254,7 +254,7 @@ taskgun create "Deep Learning" --offset 2h --interval 3h --skip lunch --skip bed
 
 ### `taskgun create`
 
-Generate a series of numbered Taskwarrior tasks.
+Generate a series of numbered [Taskwarrior](https://taskwarrior.org) tasks.
 
 **Syntax:**
 ```bash
@@ -265,16 +265,16 @@ taskgun create <PROJECT> [OPTIONS]
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `<PROJECT>` | String | Taskwarrior project name (required, positional) |
+| `<PROJECT>` | String | [Taskwarrior](https://taskwarrior.org) project name (required, positional) |
 
 **Options:**
 
 | Flag | Short | Type | Required | Description |
 |------|-------|------|----------|-------------|
-| `--parts` | `-p` | String | Yes | Number of tasks (e.g., "10") or subsection structure (e.g., "2,3,1") |
-| `--unit` | `-u` | String | No | Task name prefix (default: "Video") |
-| `--offset` | `-o` | String | No | Time until first task (e.g., "5d", "2h") |
-| `--interval` | `-i` | String | No | Time between tasks (e.g., "7d", "6h") |
+| `--parts` | `-p` | String | Yes | Number of tasks (e.g., 10) or subsection structure (e.g., 2,3,1) |
+| `--unit` | `-u` | String | No | Task name prefix (default: Video) |
+| `--offset` | `-o` | String | No | Time until first task (e.g., 5d, 2h) |
+| `--interval` | `-i` | String | No | Time between tasks (e.g., 7d, 6h) |
 | `--skip` | | String | No | Skip window (can be used multiple times) |
 
 **Parts format:**
@@ -287,11 +287,9 @@ taskgun create <PROJECT> [OPTIONS]
 - Day names: `sat,sun`, `friday,saturday,sunday`, `mon,tue,wed,thu,fri`
 
 **Notes:**
-- `--parts` is required (no default value)
+- `--parts` is required
 - `--offset` and `--interval` must be provided together
-- Both must use the same unit (either "d" for days or "h" for hours)
-- `--skip` can be used multiple times to apply multiple skip rules
-- Quotes are optional for parts: `-p 2,3,1` works the same as `-p "2,3,1"`
+- `--skip` can be used multiple times
 
 ### `taskgun completions`
 
@@ -310,14 +308,14 @@ taskgun completions fish > ~/.config/fish/completions/taskgun.fish
 
 ## How It Works
 
-taskgun shells out to Taskwarrior's `task add` command for each task. It:
+taskgun shells out to [Taskwarrior](https://taskwarrior.org)'s `task add` command for each task. It:
 
-1. Validates that Taskwarrior is installed
+1. Validates that [Taskwarrior](https://taskwarrior.org) is installed
 2. Generates task names (simple or hierarchical)
 3. Calculates due dates if scheduling is requested
 4. Creates tasks one by one using `task add`
 
-All tasks are created in your Taskwarrior database and follow your configured workflows, hooks, and settings.
+All tasks are created in your [Taskwarrior](https://taskwarrior.org) database and follow your configured workflows, hooks, and settings.
 
 ## Development
 

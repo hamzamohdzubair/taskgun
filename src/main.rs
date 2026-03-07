@@ -12,7 +12,7 @@ mod taskwarrior;
 #[command(
     name = "taskgun",
     version,
-    about = "A gun to shoot tasks for Taskwarrior",
+    about = "A rusty gun for our taskwarrior",
     long_about = "Extend Taskwarrior with bulk operations and smart scheduling.\n\n\
                   Examples:\n  \
                   taskgun create \"Deep Learning\" -p 5\n  \

@@ -181,16 +181,28 @@ pub fn execute(args: CreateArgs) -> Result<()> {
         let interval_duration = Duration::parse(interval_str)
             .context(format!("Invalid interval: '{}'", interval_str))?;
 
-        // Both must have the same unit
-        if offset_duration.unit != interval_duration.unit {
-            anyhow::bail!(
-                "Offset and interval must use the same unit. Got offset: '{}', interval: '{}'",
-                offset_str,
-                interval_str
-            );
-        }
+        // Use hours mode if either duration uses hours, otherwise use days mode
+        let use_hours = offset_duration.unit == DurationUnit::Hours
+            || interval_duration.unit == DurationUnit::Hours;
 
-        let use_hours = offset_duration.unit == DurationUnit::Hours;
+        // Convert both to the same unit (hours if hour mode, days if day mode)
+        let offset_value = if use_hours {
+            match offset_duration.unit {
+                DurationUnit::Hours => offset_duration.value,
+                DurationUnit::Days => offset_duration.value * 24,
+            }
+        } else {
+            offset_duration.value
+        };
+
+        let interval_value = if use_hours {
+            match interval_duration.unit {
+                DurationUnit::Hours => interval_duration.value,
+                DurationUnit::Days => interval_duration.value * 24,
+            }
+        } else {
+            interval_duration.value
+        };
 
         // Parse skip rules
         let mut presets = SkipPresets::with_defaults();
@@ -208,8 +220,8 @@ pub fn execute(args: CreateArgs) -> Result<()> {
 
         let config = ScheduleConfig {
             base_time: Local::now(),
-            offset: offset_duration.value,
-            interval: interval_duration.value,
+            offset: offset_value,
+            interval: interval_value,
             use_hours,
             skip_rules,
         };
