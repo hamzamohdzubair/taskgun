@@ -140,17 +140,30 @@ taskgun create Project --offset 2h --interval 3h --skip lunch --skip bedtime
 Search for tasks by keyword — searches in both project names and descriptions:
 
 ```bash
-# Search for tasks containing "learning"
+# Case-insensitive search (default)
 taskgun learning
-
-# Search for tasks containing "urgent"
-taskgun urgent
+taskgun VIDEO          # Finds "Video 1", "Video 2", etc.
 
 # Search by project name
 taskgun "Deep Learning"
 ```
 
-This is a quick way to filter and view tasks without typing the full `task` command syntax.
+### Regex search
+
+Use the `-r` flag for case-sensitive regex search:
+
+```bash
+# Find tasks matching regex pattern
+taskgun 'sec [0-9]' -r
+
+# Match specific chapters/sections
+taskgun 'Video [12]' -r         # Only Video 1 and Video 2
+
+# Match lecture numbers
+taskgun 'lec [0-9]+' -r
+```
+
+**Note:** Regex mode is case-sensitive by default. Use standard regex patterns supported by Taskwarrior.
 
 ### Basic task generation
 

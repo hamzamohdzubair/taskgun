@@ -18,8 +18,8 @@ mod taskwarrior;
                   taskgun create \"Deep Learning\" -p 5\n  \
                   taskgun create \"Deep Learning\" -p 5 --offset 5d --interval 7d\n  \
                   taskgun create \"Deep Learning\" -p 2,3,1 --offset 5d --interval 7d --skip weekend\n  \
-                  taskgun learning          # Search for 'learning' in tasks\n  \
-                  taskgun urgent            # Search for 'urgent' in tasks"
+                  taskgun learning          # Case-insensitive search\n  \
+                  taskgun 'lec.*[0-9]+' -r  # Regex search (case-sensitive)"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -59,9 +59,16 @@ fn main() -> Result<()> {
             if args.is_empty() {
                 anyhow::bail!("Search keyword required");
             }
-            // Use the first argument as the keyword
-            let keyword = &args[0];
-            commands::search::execute(keyword)?;
+
+            // Check for -r or --regex flag
+            let use_regex = args.iter().any(|a| a == "-r" || a == "--regex");
+
+            // Find the keyword (first non-flag argument)
+            let keyword = args.iter()
+                .find(|a| !a.starts_with('-'))
+                .ok_or_else(|| anyhow::anyhow!("Search keyword required"))?;
+
+            commands::search::execute(keyword, use_regex)?;
         }
     }
 
