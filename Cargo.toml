@@ -1,6 +1,6 @@
 [package]
 name = "taskgun"
-version = "0.3.2"
+version = "0.4.0"
 edition = "2021"
 authors = ["Hamza Mohd Zubair <hamzamohdzubair@gmail.com>"]
 description = "A rusty gun for our taskwarrior - bulk task generation and smart scheduling"

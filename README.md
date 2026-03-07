@@ -74,6 +74,7 @@ Creates 30 lectures scheduled every 2 hours starting in 2 hours, automatically s
 ## Features
 
 - **Bulk task generation** — Create numbered task series with a single command
+- **Instant keyword search** — Search tasks by typing `taskgun keyword` (searches projects and descriptions)
 - **Flexible skip system** — Skip time windows and days using presets or custom rules
 - **Smart scheduling** — Day-based or hour-based scheduling
 - **Hierarchical tasks** — Support for subsections (e.g., Part 1.1, 1.2, 2.1)
@@ -133,6 +134,23 @@ taskgun create Project --offset 2h --interval 3h --skip lunch --skip bedtime
 - `weekend`: Saturday and Sunday
 
 ## Usage
+
+### Keyword search
+
+Search for tasks by keyword — searches in both project names and descriptions:
+
+```bash
+# Search for tasks containing "learning"
+taskgun learning
+
+# Search for tasks containing "urgent"
+taskgun urgent
+
+# Search by project name
+taskgun "Deep Learning"
+```
+
+This is a quick way to filter and view tasks without typing the full `task` command syntax.
 
 ### Basic task generation
 
@@ -350,8 +368,10 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Roadmap
 
 - [x] v0.1.0: Create subcommand with smart scheduling
-- [ ] v0.2.0: Search subcommand with filters
-- [ ] v0.3.0: Bulk modify subcommand
+- [x] v0.2.0: Skip system with presets and custom rules
+- [x] v0.3.0: Mixed unit support and refined defaults
+- [x] v0.4.0: Keyword search functionality
+- [ ] v0.5.0: Bulk modify subcommand
 - [ ] v1.0.0: Stable release with comprehensive testing
 
 ## Links

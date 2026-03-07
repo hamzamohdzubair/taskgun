@@ -18,9 +18,8 @@ mod taskwarrior;
                   taskgun create \"Deep Learning\" -p 5\n  \
                   taskgun create \"Deep Learning\" -p 5 --offset 5d --interval 7d\n  \
                   taskgun create \"Deep Learning\" -p 2,3,1 --offset 5d --interval 7d --skip weekend\n  \
-                  taskgun create \"Deep Learning\" -p 5 --offset 2h --interval 6h --skip bedtime\n  \
-                  taskgun create \"Deep Learning\" -p 5 --offset 1d --interval 1d --skip weekend --skip bedtime\n  \
-                  taskgun create \"Deep Learning\" -p 30 --offset 2h --interval 2h --skip bedtime"
+                  taskgun learning          # Search for 'learning' in tasks\n  \
+                  taskgun urgent            # Search for 'urgent' in tasks"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -28,6 +27,7 @@ struct Cli {
 }
 
 #[derive(Subcommand)]
+#[command(allow_external_subcommands = true)]
 enum Commands {
     /// Bulk task generation with smart scheduling
     Create(commands::create::CreateArgs),
@@ -38,6 +38,10 @@ enum Commands {
         #[arg(value_enum)]
         shell: Shell,
     },
+
+    /// External subcommand (treated as keyword search)
+    #[command(external_subcommand)]
+    Search(Vec<String>),
 }
 
 fn main() -> Result<()> {
@@ -49,6 +53,15 @@ fn main() -> Result<()> {
             let mut cmd = Cli::command();
             let bin_name = cmd.get_name().to_string();
             generate(shell, &mut cmd, bin_name, &mut io::stdout());
+        }
+        Commands::Search(args) => {
+            // External subcommand - treat as keyword search
+            if args.is_empty() {
+                anyhow::bail!("Search keyword required");
+            }
+            // Use the first argument as the keyword
+            let keyword = &args[0];
+            commands::search::execute(keyword)?;
         }
     }
 
