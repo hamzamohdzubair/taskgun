@@ -37,13 +37,12 @@ Generates a series of numbered Taskwarrior tasks under a project.
 |------|-------|------|---------|-------------|
 | `--project` | `-p` | String | required | Taskwarrior project name |
 | `--count` | `-n` | u32 | 10 | Number of chapters |
-| `--unit` | `-u` | String | `"Video"` | Task name prefix |
-| `--offset` | `-o` | u32 | — | Delay before first task is due |
-| `--interval` | `-i` | u32 | — | Gap between consecutive tasks |
-| `--hours` | | bool flag | false | Treat offset/interval as hours (not days) |
+| `--unit` | `-u` | String | `"Part"` | Task name prefix |
+| `--offset` | `-o` | String | — | Delay before first task is due (e.g., "5d", "2h", "30m", "45min") |
+| `--interval` | `-i` | String | — | Gap between consecutive tasks (e.g., "7d", "6h", "15m", "20min") |
 | `--subsections` | `-s` | String | — | Comma-separated subsection counts e.g. `2,3,1` |
 
-`--offset` and `--interval` must always be provided together.
+`--offset` and `--interval` must always be provided together. Time units can be mixed (e.g., offset in hours, interval in minutes).
 
 #### Task naming
 
@@ -53,46 +52,61 @@ Generates a series of numbered Taskwarrior tasks under a project.
 
 #### Due date scheduling
 
-**Day mode** (default):
+**Day mode** (default - when using only "d" units):
 ```
 Task 1 → today + offset days
 Task 2 → today + offset + 1×interval days
 Task N → today + offset + (N-1)×interval days
 ```
 
-**Hour mode** (`--hours` flag):
-- Each task is `interval` hours after the *resolved* time of the previous task
+**Hour/Minute mode** (when using "h", "m", or "min" units):
+- Each task is scheduled `interval` time after the *resolved* time of the previous task
+- Units can be mixed freely (e.g., offset in hours, interval in minutes)
 - Quiet window: **22:00–06:00** — any timestamp landing in this window is
   pushed forward to **06:00** of the appropriate day, and the *next* task
-  is scheduled `interval` hours after that pushed time (not the original
-  logical time). This means no two tasks ever share a timestamp, and the
-  interval between consecutive tasks is always honoured.
+  is scheduled from that pushed time (not the original logical time)
+- This means no two tasks ever share a timestamp, and the interval between
+  consecutive tasks is always honoured
 
 ```
-# Example: now = 20:00, offset = 1h, interval = 3h
+# Example 1: now = 20:00, offset = 1h, interval = 3h
 Task 1 → 21:00           (valid)
 Task 2 → 21:00+3h=00:00  → pushed to 06:00 next day
 Task 3 → 06:00+3h=09:00  (valid)
 Task 4 → 09:00+3h=12:00  (valid)
+
+# Example 2: now = 10:00, offset = 30m, interval = 45min
+Task 1 → 10:30           (valid)
+Task 2 → 10:30+45min=11:15 (valid)
+Task 3 → 11:15+45min=12:00 (valid)
 ```
 
 #### Example invocations
 
 ```bash
 # Simple, no due dates
-taskgun create -p "Deep Learning" -n 5
+taskgun create "Deep Learning" -p 5
 
 # Days-based scheduling
-taskgun create -p "Deep Learning" -n 5 --offset 5 --interval 7
+taskgun create "Deep Learning" -p 5 --offset 5d --interval 7d
 
 # Variable subsections, days-based
-taskgun create -p "Deep Learning" -s "2,3,1" --offset 5 --interval 7
+taskgun create "Deep Learning" -p "2,3,1" --offset 5d --interval 7d
 
 # Hour-based with quiet window
-taskgun create -p "Deep Learning" -n 5 --offset 2 --interval 6 --hours
+taskgun create "Deep Learning" -p 5 --offset 2h --interval 6h
 
-# Custom unit name
-taskgun create -p "Deep Learning" -s "2,3,2" -u "Lecture" --offset 3 --interval 4
+# Minute-based scheduling
+taskgun create "Deep Learning" -p 5 --offset 30m --interval 45min
+
+# Mixed units: offset in hours, interval in minutes
+taskgun create "Deep Learning" -p 10 --offset 2h --interval 30m
+
+# Mixed units: offset in days, interval in hours
+taskgun create "Deep Learning" -p 10 --offset 1d --interval 6h
+
+# Custom unit name with minutes
+taskgun create "Deep Learning" -p "2,3,2" -u "Lecture" --offset 1h --interval 15min
 ```
 
 ---

@@ -20,11 +20,11 @@ pub struct CreateArgs {
     #[arg(short = 'u', long, default_value = "Part")]
     unit: String,
 
-    /// Time until first task is due (e.g., "5d" for 5 days, "2h" for 2 hours)
+    /// Time until first task is due (e.g., "5d" for 5 days, "2h" for 2 hours, "30m" or "30min" for 30 minutes)
     #[arg(short = 'o', long, requires = "interval")]
     offset: Option<String>,
 
-    /// Time between each task (e.g., "7d" for 7 days, "6h" for 6 hours)
+    /// Time between each task (e.g., "7d" for 7 days, "6h" for 6 hours, "45m" or "45min" for 45 minutes)
     #[arg(short = 'i', long, requires = "offset")]
     interval: Option<String>,
 
@@ -44,10 +44,11 @@ struct Duration {
 enum DurationUnit {
     Days,
     Hours,
+    Minutes,
 }
 
 impl Duration {
-    /// Parse a duration string like "5d" or "2h"
+    /// Parse a duration string like "5d", "2h", "30m", or "45min"
     fn parse(s: &str) -> Result<Self> {
         let s = s.trim();
         if s.is_empty() {
@@ -55,13 +56,18 @@ impl Duration {
         }
 
         // Split into value and unit
-        let (value_str, unit_str) = if s.ends_with('d') || s.ends_with('D') {
+        // Check longer suffixes first to avoid "min" being matched as "m"
+        let (value_str, unit_str) = if s.to_lowercase().ends_with("min") {
+            (&s[..s.len() - 3], "min")
+        } else if s.ends_with('d') || s.ends_with('D') {
             (&s[..s.len() - 1], "d")
         } else if s.ends_with('h') || s.ends_with('H') {
             (&s[..s.len() - 1], "h")
+        } else if s.ends_with('m') || s.ends_with('M') {
+            (&s[..s.len() - 1], "m")
         } else {
             anyhow::bail!(
-                "Duration must end with 'd' (days) or 'h' (hours). Got: '{}'",
+                "Duration must end with 'd' (days), 'h' (hours), 'm' (minutes), or 'min' (minutes). Got: '{}'",
                 s
             );
         };
@@ -74,6 +80,7 @@ impl Duration {
         let unit = match unit_str {
             "d" => DurationUnit::Days,
             "h" => DurationUnit::Hours,
+            "m" | "min" => DurationUnit::Minutes,
             _ => unreachable!(),
         };
 
@@ -181,27 +188,49 @@ pub fn execute(args: CreateArgs) -> Result<()> {
         let interval_duration = Duration::parse(interval_str)
             .context(format!("Invalid interval: '{}'", interval_str))?;
 
-        // Use hours mode if either duration uses hours, otherwise use days mode
-        let use_hours = offset_duration.unit == DurationUnit::Hours
-            || interval_duration.unit == DurationUnit::Hours;
+        // Use minutes as the finest granularity unit
+        // If either uses minutes, convert to minutes
+        // Else if either uses hours, convert to hours
+        // Otherwise use days
+        let (use_hours, use_minutes) = (
+            offset_duration.unit == DurationUnit::Hours
+                || interval_duration.unit == DurationUnit::Hours
+                || offset_duration.unit == DurationUnit::Minutes
+                || interval_duration.unit == DurationUnit::Minutes,
+            offset_duration.unit == DurationUnit::Minutes
+                || interval_duration.unit == DurationUnit::Minutes,
+        );
 
-        // Convert both to the same unit (hours if hour mode, days if day mode)
-        let offset_value = if use_hours {
-            match offset_duration.unit {
+        // Convert both to the same unit
+        let (offset_value, interval_value) = if use_minutes {
+            // Convert everything to minutes
+            let offset_mins = match offset_duration.unit {
+                DurationUnit::Minutes => offset_duration.value,
+                DurationUnit::Hours => offset_duration.value * 60,
+                DurationUnit::Days => offset_duration.value * 24 * 60,
+            };
+            let interval_mins = match interval_duration.unit {
+                DurationUnit::Minutes => interval_duration.value,
+                DurationUnit::Hours => interval_duration.value * 60,
+                DurationUnit::Days => interval_duration.value * 24 * 60,
+            };
+            (offset_mins, interval_mins)
+        } else if use_hours {
+            // Convert everything to hours
+            let offset_hrs = match offset_duration.unit {
                 DurationUnit::Hours => offset_duration.value,
                 DurationUnit::Days => offset_duration.value * 24,
-            }
-        } else {
-            offset_duration.value
-        };
-
-        let interval_value = if use_hours {
-            match interval_duration.unit {
+                DurationUnit::Minutes => unreachable!(), // Already handled above
+            };
+            let interval_hrs = match interval_duration.unit {
                 DurationUnit::Hours => interval_duration.value,
                 DurationUnit::Days => interval_duration.value * 24,
-            }
+                DurationUnit::Minutes => unreachable!(), // Already handled above
+            };
+            (offset_hrs, interval_hrs)
         } else {
-            interval_duration.value
+            // Both are in days, use as-is
+            (offset_duration.value, interval_duration.value)
         };
 
         // Parse skip rules
@@ -223,13 +252,14 @@ pub fn execute(args: CreateArgs) -> Result<()> {
             offset: offset_value,
             interval: interval_value,
             use_hours,
+            use_minutes,
             skip_rules,
         };
 
         let scheduled = config.schedule_tasks(total_tasks)?;
 
         // Convert to Taskwarrior format
-        let dates: Vec<String> = if use_hours {
+        let dates: Vec<String> = if use_hours || use_minutes {
             scheduled
                 .iter()
                 .map(|st| format_for_taskwarrior(&st.resolved, true))
@@ -298,6 +328,28 @@ mod tests {
         let dur = Duration::parse("24H").unwrap();
         assert_eq!(dur.value, 24);
         assert_eq!(dur.unit, DurationUnit::Hours);
+
+        // Test minute parsing with 'm'
+        let dur = Duration::parse("30m").unwrap();
+        assert_eq!(dur.value, 30);
+        assert_eq!(dur.unit, DurationUnit::Minutes);
+
+        let dur = Duration::parse("45M").unwrap();
+        assert_eq!(dur.value, 45);
+        assert_eq!(dur.unit, DurationUnit::Minutes);
+
+        // Test minute parsing with 'min'
+        let dur = Duration::parse("15min").unwrap();
+        assert_eq!(dur.value, 15);
+        assert_eq!(dur.unit, DurationUnit::Minutes);
+
+        let dur = Duration::parse("90MIN").unwrap();
+        assert_eq!(dur.value, 90);
+        assert_eq!(dur.unit, DurationUnit::Minutes);
+
+        let dur = Duration::parse("60Min").unwrap();
+        assert_eq!(dur.value, 60);
+        assert_eq!(dur.unit, DurationUnit::Minutes);
     }
 
     #[test]
@@ -308,6 +360,8 @@ mod tests {
         assert!(Duration::parse("5x").is_err());
         assert!(Duration::parse("abc").is_err());
         assert!(Duration::parse("-5d").is_err());
+        assert!(Duration::parse("mi").is_err()); // Incomplete "min"
+        assert!(Duration::parse("5mins").is_err()); // "mins" not supported
     }
 
     #[test]

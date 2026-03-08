@@ -10,6 +10,7 @@ pub struct ScheduleConfig {
     pub offset: u32,
     pub interval: u32,
     pub use_hours: bool,
+    pub use_minutes: bool,
     pub skip_rules: Vec<SkipRule>,
 }
 
@@ -67,7 +68,7 @@ impl ScheduledTime {
 impl ScheduleConfig {
     /// Schedule a series of tasks according to the configuration
     ///
-    /// CRITICAL: In hour mode, each task is scheduled from the RESOLVED time
+    /// CRITICAL: In hour/minute mode, each task is scheduled from the RESOLVED time
     /// of the previous task, not the logical time. This ensures:
     /// - No two tasks share the same timestamp
     /// - The interval between consecutive tasks is always honored
@@ -75,7 +76,19 @@ impl ScheduleConfig {
     pub fn schedule_tasks(&self, count: usize) -> Result<Vec<ScheduledTime>> {
         let mut scheduled = Vec::with_capacity(count);
 
-        if self.use_hours {
+        if self.use_minutes {
+            // Minute mode: sequential calculation from resolved times
+            let current = self.base_time + Duration::minutes(self.offset as i64);
+            let first = ScheduledTime::new(current, &self.skip_rules, true);
+            scheduled.push(first);
+
+            for _ in 1..count {
+                let prev_resolved = scheduled.last().unwrap().resolved;
+                let next_logical = prev_resolved + Duration::minutes(self.interval as i64);
+                let next = ScheduledTime::new(next_logical, &self.skip_rules, true);
+                scheduled.push(next);
+            }
+        } else if self.use_hours {
             // Hour mode: sequential calculation from resolved times
             let current = self.base_time + Duration::hours(self.offset as i64);
             let first = ScheduledTime::new(current, &self.skip_rules, true);
@@ -146,6 +159,7 @@ mod tests {
             offset: 5,
             interval: 7,
             use_hours: false,
+            use_minutes: false,
             skip_rules: vec![],
         };
 
@@ -183,6 +197,7 @@ mod tests {
             offset: 1,
             interval: 3,
             use_hours: true,
+            use_minutes: false,
             skip_rules,
         };
 
@@ -215,6 +230,7 @@ mod tests {
             offset: 1,
             interval: 1,
             use_hours: false,
+            use_minutes: false,
             skip_rules,
         };
 
@@ -255,6 +271,7 @@ mod tests {
             offset: 2,
             interval: 1,
             use_hours: true,
+            use_minutes: false,
             skip_rules,
         };
 
@@ -286,6 +303,7 @@ mod tests {
             offset: 2,
             interval: 12,
             use_hours: true,
+            use_minutes: false,
             skip_rules,
         };
 
@@ -302,5 +320,69 @@ mod tests {
         // Task 3: Mon 18:00+12h = Tue 06:00 (skips bedtime)
         assert_eq!(scheduled[2].resolved.weekday(), Weekday::Tue);
         assert_eq!(scheduled[2].resolved.hour(), 6);
+    }
+
+    #[test]
+    fn test_minute_mode_scheduling() {
+        // Base: 10:00, offset: 30min, interval: 45min
+        let base = make_time(2025, 1, 15, 10, 0);
+        let config = ScheduleConfig {
+            base_time: base,
+            offset: 30,
+            interval: 45,
+            use_hours: false,
+            use_minutes: true,
+            skip_rules: vec![],
+        };
+
+        let scheduled = config.schedule_tasks(4).unwrap();
+
+        // Task 1: 10:00+30min = 10:30
+        assert_eq!(scheduled[0].resolved.hour(), 10);
+        assert_eq!(scheduled[0].resolved.minute(), 30);
+
+        // Task 2: 10:30+45min = 11:15
+        assert_eq!(scheduled[1].resolved.hour(), 11);
+        assert_eq!(scheduled[1].resolved.minute(), 15);
+
+        // Task 3: 11:15+45min = 12:00
+        assert_eq!(scheduled[2].resolved.hour(), 12);
+        assert_eq!(scheduled[2].resolved.minute(), 0);
+
+        // Task 4: 12:00+45min = 12:45
+        assert_eq!(scheduled[3].resolved.hour(), 12);
+        assert_eq!(scheduled[3].resolved.minute(), 45);
+    }
+
+    #[test]
+    fn test_minute_mode_with_skip_time_range() {
+        // Base: 21:30, offset: 15min, interval: 20min
+        let base = make_time(2025, 1, 15, 21, 30);
+        let skip_rules = vec![SkipRule::TimeRange {
+            start_hour: 22,
+            end_hour: 6,
+        }];
+        let config = ScheduleConfig {
+            base_time: base,
+            offset: 15,
+            interval: 20,
+            use_hours: false,
+            use_minutes: true,
+            skip_rules,
+        };
+
+        let scheduled = config.schedule_tasks(3).unwrap();
+
+        // Task 1: 21:30+15min = 21:45 (valid)
+        assert_eq!(scheduled[0].resolved.hour(), 21);
+        assert_eq!(scheduled[0].resolved.minute(), 45);
+
+        // Task 2: 21:45+20min = 22:05 → pushed to 06:00 next day
+        assert_eq!(scheduled[1].resolved.hour(), 6);
+        assert_eq!(scheduled[1].resolved.minute(), 0);
+
+        // Task 3: 06:00+20min = 06:20 (valid, uses resolved time from task 2)
+        assert_eq!(scheduled[2].resolved.hour(), 6);
+        assert_eq!(scheduled[2].resolved.minute(), 20);
     }
 }

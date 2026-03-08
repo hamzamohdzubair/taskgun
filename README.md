@@ -67,6 +67,16 @@ taskgun create "Exam Prep" -p 30 -u Lecture --offset 2h --interval 2h --skip bed
 
 Creates 30 lectures scheduled every 2 hours starting in 2 hours, automatically skipping 22:00-06:00 (bedtime). With ~16 waking hours per day, you'll complete all 30 lectures in approximately 2 days.
 
+#### 5. **Rapid Practice** — 20 exercises with minute-level precision
+
+You want to practice 20 short coding exercises, dedicating 30 minutes to each, with 15-minute breaks:
+
+```bash
+taskgun create "Coding Practice" -p 20 -u Exercise --offset 30m --interval 45min --skip bedtime
+```
+
+Creates 20 exercises scheduled every 45 minutes (30 min work + 15 min break), starting in 30 minutes, automatically skipping bedtime hours.
+
 **Result:** What seemed like an overwhelming task is now a structured schedule you can follow.
 
 ---
@@ -76,7 +86,7 @@ Creates 30 lectures scheduled every 2 hours starting in 2 hours, automatically s
 - **Bulk task generation** — Create numbered task series with a single command
 - **Instant keyword search** — Search tasks by typing `taskgun keyword` (searches projects and descriptions)
 - **Flexible skip system** — Skip time windows and days using presets or custom rules
-- **Smart scheduling** — Day-based or hour-based scheduling
+- **Smart scheduling** — Day-based, hour-based, or minute-based scheduling with mixed unit support
 - **Hierarchical tasks** — Support for subsections (e.g., Part 1.1, 1.2, 2.1)
 - **Configurable presets** — Define custom skip windows in .taskrc
 - **Zero runtime dependencies** — Only requires [Taskwarrior](https://taskwarrior.org) itself
@@ -203,6 +213,31 @@ Create 5 tasks with the first due in 2 hours, then every 6 hours:
 taskgun create "Deep Learning" -p 5 --offset 2h --interval 6h
 ```
 
+### Minute-based scheduling
+
+Create 10 tasks with the first due in 30 minutes, then every 45 minutes:
+
+```bash
+taskgun create "Practice" -p 10 --offset 30m --interval 45min
+```
+
+Both `m` and `min` suffixes are supported for minutes.
+
+### Mixed unit scheduling
+
+Mix any time units — taskgun automatically handles the conversion:
+
+```bash
+# Offset in hours, interval in minutes
+taskgun create "Sprint Tasks" -p 10 --offset 2h --interval 30m
+
+# Offset in days, interval in hours
+taskgun create "Daily Reviews" -p 10 --offset 1d --interval 6h
+
+# Any combination works!
+taskgun create "Mixed" -p 5 --offset 3d --interval 90min
+```
+
 ### Skip windows (bedtime, weekends, custom)
 
 Skip specific time windows or days using the `--skip` option (can be used multiple times):
@@ -226,8 +261,8 @@ taskgun create "Deep Learning" -p 5 --offset 2h --interval 4h --skip bedtime --s
 
 **Skip behavior:**
 - Tasks landing in skip windows are pushed forward to the next valid time
-- In hour mode, subsequent tasks chain from the pushed time
-- In day mode, each task is calculated independently
+- In hour/minute mode, subsequent tasks chain from the pushed time (maintains intervals)
+- In day mode, each task is calculated independently from the base time
 
 **Built-in presets:**
 - `bedtime`: 22:00-06:00 (nighttime hours)
@@ -303,9 +338,9 @@ taskgun create <PROJECT> [OPTIONS]
 | Flag | Short | Type | Required | Description |
 |------|-------|------|----------|-------------|
 | `--parts` | `-p` | String | Yes | Number of tasks (e.g., 10) or subsection structure (e.g., 2,3,1) |
-| `--unit` | `-u` | String | No | Task name prefix (default: Video) |
-| `--offset` | `-o` | String | No | Time until first task (e.g., 5d, 2h) |
-| `--interval` | `-i` | String | No | Time between tasks (e.g., 7d, 6h) |
+| `--unit` | `-u` | String | No | Task name prefix (default: Part) |
+| `--offset` | `-o` | String | No | Time until first task (e.g., 5d, 2h, 30m, 45min) — units can be mixed with interval |
+| `--interval` | `-i` | String | No | Time between tasks (e.g., 7d, 6h, 15m, 20min) — units can be mixed with offset |
 | `--skip` | | String | No | Skip window (can be used multiple times) |
 
 **Parts format:**
@@ -316,6 +351,12 @@ taskgun create <PROJECT> [OPTIONS]
 - Named presets: `bedtime`, `weekend`, or custom from .taskrc
 - Time ranges: `2200-0600`, `21:00-06:00`, `1200-1400`
 - Day names: `sat,sun`, `friday,saturday,sunday`, `mon,tue,wed,thu,fri`
+
+**Time units:**
+- Days: `d` or `D` (e.g., `5d`, `10D`)
+- Hours: `h` or `H` (e.g., `2h`, `24H`)
+- Minutes: `m`, `M`, `min`, `MIN`, or `Min` (e.g., `30m`, `45min`, `90MIN`)
+- Units can be mixed freely between offset and interval
 
 **Notes:**
 - `--parts` is required

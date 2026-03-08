@@ -18,6 +18,7 @@ mod taskwarrior;
                   taskgun create \"Deep Learning\" -p 5\n  \
                   taskgun create \"Deep Learning\" -p 5 --offset 5d --interval 7d\n  \
                   taskgun create \"Deep Learning\" -p 2,3,1 --offset 5d --interval 7d --skip weekend\n  \
+                  taskgun create \"Deep Learning\" -p 5 --offset 2h --interval 30m  # Mix hours and minutes\n  \
                   taskgun learning          # Case-insensitive search\n  \
                   taskgun 'lec.*[0-9]+' -r  # Regex search (case-sensitive)"
 )]
