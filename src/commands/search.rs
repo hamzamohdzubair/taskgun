@@ -78,7 +78,7 @@ pub fn execute(keyword: &str, use_regex: bool, sort: &SortOrder) -> Result<()> {
     if !stderr.is_empty() {
         // "No matches" is a normal result, not an error - print it normally
         if stderr.contains("No matches") {
-            println!("No matches.");
+            println!("No matches found");
             return Ok(());
         } else {
             // Other errors should be printed to stderr
@@ -90,6 +90,9 @@ pub fn execute(keyword: &str, use_regex: bool, sort: &SortOrder) -> Result<()> {
     let stdout = String::from_utf8_lossy(&output.stdout);
     if !stdout.is_empty() {
         print_with_sequence_breaks(&stdout);
+    } else if stderr.is_empty() && !output.status.success() {
+        // If both stdout and stderr are empty but command failed, assume no matches
+        println!("No matches found");
     }
 
     Ok(())
@@ -134,16 +137,43 @@ fn print_with_sequence_breaks(output: &str) {
     }
 }
 
+/// Strip ANSI escape sequences from a string
+fn strip_ansi(s: &str) -> String {
+    let mut result = String::new();
+    let mut chars = s.chars();
+
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Skip ANSI escape sequence
+            if chars.next() == Some('[') {
+                // Skip until we find a letter (the command character)
+                for ch in chars.by_ref() {
+                    if ch.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+        } else {
+            result.push(c);
+        }
+    }
+
+    result
+}
+
 /// Extract task ID from a taskwarrior list output line
 /// Task list lines typically start with the ID in the first column
 fn extract_task_id(line: &str) -> Option<u32> {
+    // Strip ANSI color codes first
+    let clean_line = strip_ansi(line);
+
     // Skip header lines and empty lines
-    if line.trim().is_empty() || line.starts_with("ID") || line.starts_with("--") {
+    if clean_line.trim().is_empty() || clean_line.starts_with("ID") || clean_line.starts_with("--") {
         return None;
     }
 
     // Try to parse the first whitespace-separated token as a number
-    line.split_whitespace()
+    clean_line.split_whitespace()
         .next()
         .and_then(|token| token.parse::<u32>().ok())
 }
@@ -153,9 +183,35 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_strip_ansi() {
+        // Test stripping ANSI color codes
+        let line = "\x1b[48;5;234m  4\x1b[0m test";
+        assert_eq!(strip_ansi(line), "  4 test");
+
+        // Test line with no ANSI codes
+        let plain = "5 Deep Learning";
+        assert_eq!(strip_ansi(plain), "5 Deep Learning");
+
+        // Test multiple ANSI codes
+        let multi = "\x1b[38;5;1m  1\x1b[0m\x1b[38;5;1m \x1b[0m\x1b[38;5;1m5d\x1b[0m";
+        assert_eq!(strip_ansi(multi), "  1 5d");
+    }
+
+    #[test]
     fn test_extract_task_id_valid_line() {
         let line = "5 Deep Learning Video 1";
         assert_eq!(extract_task_id(line), Some(5));
+    }
+
+    #[test]
+    fn test_extract_task_id_with_ansi_codes() {
+        // Test with colored background (common in taskwarrior output)
+        let line = "\x1b[48;5;234m  4\x1b[0m\x1b[48;5;234m \x1b[0m\x1b[48;5;234m4d\x1b[0m test";
+        assert_eq!(extract_task_id(line), Some(4));
+
+        // Test with foreground color
+        let line2 = "\x1b[38;5;1m 12\x1b[0m\x1b[38;5;1m \x1b[0m task";
+        assert_eq!(extract_task_id(line2), Some(12));
     }
 
     #[test]
