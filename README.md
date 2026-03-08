@@ -151,26 +151,31 @@ Search for tasks by keyword — searches in both project names and descriptions:
 
 ```bash
 # Case-insensitive search (default)
-taskgun learning
-taskgun VIDEO          # Finds "Video 1", "Video 2", etc.
+taskgun search learning
+taskgun search VIDEO          # Finds "Video 1", "Video 2", etc.
 
 # Search by project name
+taskgun search "Deep Learning"
+
+# Shorthand syntax (same as above)
+taskgun learning
 taskgun "Deep Learning"
 ```
 
 ### Regex search
 
-Use the `-r` flag for case-sensitive regex search:
+Use the `-r` or `--regex` flag for case-sensitive regex search:
 
 ```bash
 # Find tasks matching regex pattern
-taskgun 'sec [0-9]' -r
+taskgun search 'sec [0-9]' -r
+taskgun search 'lec [0-9]+' --regex
 
 # Match specific chapters/sections
-taskgun 'Video [12]' -r         # Only Video 1 and Video 2
+taskgun search 'Video [12]' -r         # Only Video 1 and Video 2
 
-# Match lecture numbers
-taskgun 'lec [0-9]+' -r
+# Shorthand syntax also works
+taskgun 'sec [0-9]' -r
 ```
 
 **Note:** Regex mode is case-sensitive by default. Use standard regex patterns supported by Taskwarrior.
@@ -362,6 +367,47 @@ taskgun create <PROJECT> [OPTIONS]
 - `--parts` is required
 - `--offset` and `--interval` must be provided together
 - `--skip` can be used multiple times
+
+### `taskgun search`
+
+Search tasks by keyword or regex pattern.
+
+**Syntax:**
+```bash
+taskgun search <KEYWORD> [OPTIONS]
+# or shorthand:
+taskgun <KEYWORD> [OPTIONS]
+```
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `<KEYWORD>` | String | Search keyword or regex pattern (required) |
+
+**Options:**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--regex` | `-r` | Use regex mode (case-sensitive) |
+
+**Examples:**
+
+```bash
+# Case-insensitive keyword search
+taskgun search learning
+taskgun learning                    # shorthand
+
+# Regex search
+taskgun search 'lec.*[0-9]+' -r
+taskgun 'video [12]' -r            # shorthand
+```
+
+**Search behavior:**
+- Default mode: case-insensitive search in project names and descriptions
+- Regex mode (`-r`/`--regex`): case-sensitive regex matching
+- Searches both project and description fields
+- Uses Taskwarrior's native filtering
 
 ### `taskgun completions`
 

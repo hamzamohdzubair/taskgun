@@ -1,5 +1,16 @@
 use anyhow::{Context, Result};
+use clap::Args;
 use std::process::Command;
+
+#[derive(Args)]
+pub struct SearchArgs {
+    /// Search keyword or pattern
+    pub keyword: String,
+
+    /// Use regex mode (case-sensitive)
+    #[arg(short, long)]
+    pub regex: bool,
+}
 
 /// Execute a keyword search across tasks
 pub fn execute(keyword: &str, use_regex: bool) -> Result<()> {

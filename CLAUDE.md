@@ -25,9 +25,9 @@ anyhow = "1"                                        # error handling
 
 ---
 
-## Subcommands (Planned)
+## Subcommands
 
-### `taskgun create` — Bulk task generation ← **start here**
+### `taskgun create` — Bulk task generation ← **implemented**
 
 Generates a series of numbered Taskwarrior tasks under a project.
 
@@ -111,13 +111,57 @@ taskgun create "Deep Learning" -p "2,3,2" -u "Lecture" --offset 1h --interval 15
 
 ---
 
-### `taskgun search` — Search tasks ← **planned**
+### `taskgun search` — Search tasks ← **implemented**
 
-Filter and display tasks by project, tag, due date range, status, etc.
+Keyword search across task projects and descriptions with optional regex support.
+
+#### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `keyword` | String | Search keyword or regex pattern (required) |
+| `--regex` / `-r` | Flag | Enable regex mode (case-sensitive) |
+
+#### Search modes
+
+**Default mode** (case-insensitive):
+- Uses Taskwarrior's `.contains:` operator
+- Searches both project and description fields
+- Case-insensitive matching
+
+**Regex mode** (`-r` / `--regex`):
+- Uses Taskwarrior's `~` operator
+- Case-sensitive regex matching
+- Standard Taskwarrior regex patterns
+
+#### Shorthand syntax
+
+The search subcommand also supports shorthand syntax where any unrecognized command is treated as a search keyword:
 
 ```bash
-taskgun search --project "Deep Learning" --tag youtube
-taskgun search --due-before 2025-12-31 --status pending
+# Explicit syntax
+taskgun search "Deep Learning"
+taskgun search learning -r
+
+# Shorthand syntax (same as above)
+taskgun "Deep Learning"
+taskgun learning -r
+```
+
+#### Example invocations
+
+```bash
+# Case-insensitive search (default)
+taskgun search learning
+taskgun learning                    # shorthand
+
+# Search by project name
+taskgun search "Deep Learning"
+taskgun "Deep Learning"             # shorthand
+
+# Regex search
+taskgun search 'lec.*[0-9]+' -r
+taskgun 'video [12]' -r            # shorthand
 ```
 
 ---
@@ -153,10 +197,13 @@ taskgun/
 ├── README.md
 └── src/
     ├── main.rs        # clap entry point, subcommand dispatch
+    ├── scheduling.rs  # time calculation and skip logic
+    ├── skip.rs        # skip window parsing and validation
+    ├── taskwarrior.rs # taskwarrior integration
     └── commands/
         ├── mod.rs
         ├── create.rs  # create subcommand logic
-        ├── search.rs  # search subcommand logic (planned)
+        ├── search.rs  # search subcommand logic
         └── modify.rs  # modify subcommand logic (planned)
 ```
 

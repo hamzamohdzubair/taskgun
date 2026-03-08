@@ -33,6 +33,9 @@ enum Commands {
     /// Bulk task generation with smart scheduling
     Create(commands::create::CreateArgs),
 
+    /// Search tasks by keyword (case-insensitive by default)
+    Search(commands::search::SearchArgs),
+
     /// Generate shell completions
     Completions {
         /// The shell to generate completions for
@@ -40,9 +43,9 @@ enum Commands {
         shell: Shell,
     },
 
-    /// External subcommand (treated as keyword search)
+    /// External subcommand (fallback for shorthand search syntax)
     #[command(external_subcommand)]
-    Search(Vec<String>),
+    External(Vec<String>),
 }
 
 fn main() -> Result<()> {
@@ -50,13 +53,16 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Create(args) => commands::create::execute(args)?,
+        Commands::Search(args) => {
+            commands::search::execute(&args.keyword, args.regex)?;
+        }
         Commands::Completions { shell } => {
             let mut cmd = Cli::command();
             let bin_name = cmd.get_name().to_string();
             generate(shell, &mut cmd, bin_name, &mut io::stdout());
         }
-        Commands::Search(args) => {
-            // External subcommand - treat as keyword search
+        Commands::External(args) => {
+            // External subcommand - treat as keyword search (shorthand syntax)
             if args.is_empty() {
                 anyhow::bail!("Search keyword required");
             }
