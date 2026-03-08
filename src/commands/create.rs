@@ -466,4 +466,135 @@ mod tests {
         };
         assert!(generate_task_names(&args).is_err());
     }
+
+    #[test]
+    fn test_format_for_taskwarrior() {
+        use chrono::Local;
+
+        let dt = Local::now();
+
+        // Test with time
+        let formatted = format_for_taskwarrior(&dt, true);
+        assert!(formatted.contains('T'));
+        assert!(formatted.contains(':'));
+
+        // Test without time (date only)
+        let formatted = format_for_taskwarrior(&dt, false);
+        assert!(!formatted.contains('T'));
+        assert!(!formatted.contains(':'));
+    }
+
+    #[test]
+    fn test_format_relative_days() {
+        use chrono::{Duration, Local};
+
+        let base = Local::now();
+        let future = base + Duration::days(5);
+
+        let formatted = format_relative_days(base, future);
+        assert_eq!(formatted, "today+5d");
+
+        // Test same day
+        let formatted = format_relative_days(base, base);
+        assert_eq!(formatted, "today");
+
+        // Test next day
+        let tomorrow = base + Duration::days(1);
+        let formatted = format_relative_days(base, tomorrow);
+        assert_eq!(formatted, "today+1d");
+    }
+
+    #[test]
+    fn test_parse_subsections_edge_cases() {
+        // Single large number
+        let result = parse_subsections("100").unwrap();
+        assert_eq!(result, vec![(1, 100)]);
+
+        // Many sections
+        let result = parse_subsections("1,1,1,1,1,1,1,1").unwrap();
+        assert_eq!(result.len(), 8);
+
+        // Varying sizes
+        let result = parse_subsections("10,1,5,3").unwrap();
+        assert_eq!(result, vec![(1, 10), (2, 1), (3, 5), (4, 3)]);
+    }
+
+    #[test]
+    fn test_duration_parse_edge_cases() {
+        // Large values
+        let dur = Duration::parse("999d").unwrap();
+        assert_eq!(dur.value, 999);
+
+        let dur = Duration::parse("100h").unwrap();
+        assert_eq!(dur.value, 100);
+
+        let dur = Duration::parse("500min").unwrap();
+        assert_eq!(dur.value, 500);
+
+        // Mixed case
+        let dur = Duration::parse("5D").unwrap();
+        assert_eq!(dur.value, 5);
+        assert_eq!(dur.unit, DurationUnit::Days);
+
+        let dur = Duration::parse("3H").unwrap();
+        assert_eq!(dur.value, 3);
+        assert_eq!(dur.unit, DurationUnit::Hours);
+    }
+
+    #[test]
+    fn test_task_name_edge_cases() {
+        // Large chapter numbers
+        let name = TaskName {
+            chapter: 999,
+            section: None,
+        };
+        assert_eq!(name.format("Part"), "Part 999");
+
+        let name = TaskName {
+            chapter: 100,
+            section: Some(200),
+        };
+        assert_eq!(name.format("Section"), "Section 100.200");
+
+        // With empty unit (edge case)
+        let name = TaskName {
+            chapter: 1,
+            section: None,
+        };
+        assert_eq!(name.format(""), " 1");
+    }
+
+    #[test]
+    fn test_generate_task_names_large_count() {
+        let args = CreateArgs {
+            project: "Test".to_string(),
+            parts: "50".to_string(),
+            unit: "Video".to_string(),
+            offset: None,
+            interval: None,
+            skip: vec![],
+        };
+
+        let names = generate_task_names(&args).unwrap();
+        assert_eq!(names.len(), 50);
+        assert_eq!(names[0].format("Video"), "Video 1");
+        assert_eq!(names[49].format("Video"), "Video 50");
+    }
+
+    #[test]
+    fn test_generate_task_names_complex_hierarchy() {
+        let args = CreateArgs {
+            project: "Test".to_string(),
+            parts: "1,2,3,4,5".to_string(),
+            unit: "Module".to_string(),
+            offset: None,
+            interval: None,
+            skip: vec![],
+        };
+
+        let names = generate_task_names(&args).unwrap();
+        assert_eq!(names.len(), 15); // 1+2+3+4+5
+        assert_eq!(names[0].format("Module"), "Module 1.1");
+        assert_eq!(names[14].format("Module"), "Module 5.5");
+    }
 }

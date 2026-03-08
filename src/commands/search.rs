@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use clap::Args;
+use clap::{Args, ValueEnum};
 use std::process::Command;
 
 #[derive(Args)]
@@ -10,10 +10,25 @@ pub struct SearchArgs {
     /// Use regex mode (case-sensitive)
     #[arg(short, long)]
     pub regex: bool,
+
+    /// Sort order (default: id ascending)
+    #[arg(short = 's', long, value_enum, default_value = "id")]
+    pub sort: SortOrder,
+}
+
+#[derive(Clone, ValueEnum)]
+pub enum SortOrder {
+    /// Sort by task ID (ascending)
+    #[value(name = "id")]
+    Id,
+
+    /// Sort by due date (ascending)
+    #[value(name = "due")]
+    Due,
 }
 
 /// Execute a keyword search across tasks
-pub fn execute(keyword: &str, use_regex: bool) -> Result<()> {
+pub fn execute(keyword: &str, use_regex: bool, sort: &SortOrder) -> Result<()> {
     // Validate Taskwarrior is installed
     crate::taskwarrior::check_taskwarrior()
         .context("Taskwarrior must be installed to use taskgun")?;
@@ -37,30 +52,91 @@ pub fn execute(keyword: &str, use_regex: bool) -> Result<()> {
         cmd.arg(filter);
     }
 
+    // Apply sort order
+    let sort_param = match sort {
+        SortOrder::Id => "rc.report.list.sort=id+",
+        SortOrder::Due => "rc.report.list.sort=due+,id+",
+    };
+    cmd.arg(sort_param);
+
     cmd.arg("list");
 
     let output = cmd.output()
         .context("Failed to execute task command")?;
 
-    // Print stdout (task list)
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    if !stdout.is_empty() {
-        print!("{}", stdout);
-    }
-
-    // Check stderr for messages
+    // Check stderr for messages first
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !stderr.is_empty() {
         // "No matches" is a normal result, not an error - print it normally
         if stderr.contains("No matches") {
             println!("No matches.");
+            return Ok(());
         } else {
             // Other errors should be printed to stderr
             eprint!("{}", stderr);
         }
     }
 
+    // Process stdout with line breaks for non-sequential IDs
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if !stdout.is_empty() {
+        print_with_sequence_breaks(&stdout);
+    }
+
     Ok(())
+}
+
+/// Print task list with line breaks between non-sequential ID groups
+fn print_with_sequence_breaks(output: &str) {
+    let lines: Vec<&str> = output.lines().collect();
+
+    if lines.is_empty() {
+        return;
+    }
+
+    // Extract task IDs from each line and track line index
+    let tasks: Vec<(usize, Option<u32>)> = lines.iter()
+        .enumerate()
+        .map(|(idx, line)| {
+            let id = extract_task_id(line);
+            (idx, id)
+        })
+        .collect();
+
+    // Print lines with breaks where ID sequence is broken
+    let mut prev_id: Option<u32> = None;
+
+    for (line_idx, id_opt) in tasks {
+        // Check if we should insert a line break
+        if let (Some(prev), Some(current)) = (prev_id, id_opt) {
+            // If IDs are not sequential (difference > 1), add line break
+            if current > prev + 1 {
+                println!(); // Insert blank line
+            }
+        }
+
+        // Print the line
+        println!("{}", lines[line_idx]);
+
+        // Update previous ID for next iteration
+        if id_opt.is_some() {
+            prev_id = id_opt;
+        }
+    }
+}
+
+/// Extract task ID from a taskwarrior list output line
+/// Task list lines typically start with the ID in the first column
+fn extract_task_id(line: &str) -> Option<u32> {
+    // Skip header lines and empty lines
+    if line.trim().is_empty() || line.starts_with("ID") || line.starts_with("--") {
+        return None;
+    }
+
+    // Try to parse the first whitespace-separated token as a number
+    line.split_whitespace()
+        .next()
+        .and_then(|token| token.parse::<u32>().ok())
 }
 
 #[cfg(test)]
@@ -68,23 +144,122 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_execute_requires_taskwarrior() {
-        // This test just ensures the function signature is correct
-        // Actual integration tests would require taskwarrior to be installed
-        assert!(true);
+    fn test_extract_task_id_valid_line() {
+        let line = "5 Deep Learning Video 1";
+        assert_eq!(extract_task_id(line), Some(5));
     }
 
     #[test]
-    fn test_search_modes() {
-        // Test that different modes produce different command structures
-        // This is a unit test that doesn't actually call taskwarrior
+    fn test_extract_task_id_with_whitespace() {
+        let line = "  42   Deep Learning   Video 2.1  ";
+        assert_eq!(extract_task_id(line), Some(42));
+    }
 
-        // Just verify the function exists and has correct signature
-        let keyword = "test";
-        let _use_regex = false;
+    #[test]
+    fn test_extract_task_id_header_line() {
+        let line = "ID Project Description";
+        assert_eq!(extract_task_id(line), None);
+    }
 
-        // We can't easily test the actual command building without mocking,
-        // but we can verify the function compiles and accepts the right types
-        assert_eq!(keyword, "test");
+    #[test]
+    fn test_extract_task_id_separator_line() {
+        let line = "-- ------- -----------";
+        assert_eq!(extract_task_id(line), None);
+    }
+
+    #[test]
+    fn test_extract_task_id_empty_line() {
+        let line = "";
+        assert_eq!(extract_task_id(line), None);
+    }
+
+    #[test]
+    fn test_extract_task_id_whitespace_only() {
+        let line = "   ";
+        assert_eq!(extract_task_id(line), None);
+    }
+
+    #[test]
+    fn test_extract_task_id_non_numeric() {
+        let line = "ABC Project Description";
+        assert_eq!(extract_task_id(line), None);
+    }
+
+    #[test]
+    fn test_print_with_sequence_breaks_sequential_ids() {
+        // Test output with sequential IDs (no breaks expected)
+        let output = "ID Description\n5 Task 5\n6 Task 6\n7 Task 7\n";
+
+        // Capture printed output (we're just verifying it doesn't panic)
+        print_with_sequence_breaks(output);
+    }
+
+    #[test]
+    fn test_print_with_sequence_breaks_non_sequential_ids() {
+        // Test output with non-sequential IDs (breaks expected)
+        let output = "ID Description\n5 Task 5\n6 Task 6\n7 Task 7\n9 Task 9\n10 Task 10\n";
+
+        // Capture printed output (we're just verifying it doesn't panic)
+        print_with_sequence_breaks(output);
+    }
+
+    #[test]
+    fn test_print_with_sequence_breaks_empty_output() {
+        // Test with empty string
+        let output = "";
+        print_with_sequence_breaks(output);
+    }
+
+    #[test]
+    fn test_print_with_sequence_breaks_single_task() {
+        // Test with single task
+        let output = "ID Description\n5 Task 5\n";
+        print_with_sequence_breaks(output);
+    }
+
+    #[test]
+    fn test_print_with_sequence_breaks_large_gap() {
+        // Test with large gap in IDs
+        let output = "ID Description\n5 Task 5\n100 Task 100\n";
+        print_with_sequence_breaks(output);
+    }
+
+    #[test]
+    fn test_sort_order_enum_values() {
+        // Verify enum values exist and are distinct
+        let id_sort = SortOrder::Id;
+        let due_sort = SortOrder::Due;
+
+        // These should compile and be different variants
+        assert!(matches!(id_sort, SortOrder::Id));
+        assert!(matches!(due_sort, SortOrder::Due));
+    }
+
+    #[test]
+    fn test_search_args_defaults() {
+        // Test that SearchArgs can be constructed with expected defaults
+        let args = SearchArgs {
+            keyword: "test".to_string(),
+            regex: false,
+            sort: SortOrder::Id,
+        };
+
+        assert_eq!(args.keyword, "test");
+        assert_eq!(args.regex, false);
+        assert!(matches!(args.sort, SortOrder::Id));
+    }
+
+    #[test]
+    fn test_search_args_with_regex() {
+        // Test SearchArgs with regex enabled
+        let args = SearchArgs {
+            keyword: "test.*pattern".to_string(),
+            regex: true,
+            sort: SortOrder::Due,
+        };
+
+        assert_eq!(args.keyword, "test.*pattern");
+        assert_eq!(args.regex, true);
+        assert!(matches!(args.sort, SortOrder::Due));
     }
 }

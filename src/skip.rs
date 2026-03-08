@@ -413,4 +413,165 @@ mod tests {
         let rules = presets.parse_skip_arg("fri,sat,sun").unwrap();
         assert_eq!(rules.len(), 1);
     }
+
+    #[test]
+    fn test_parse_day_all_variants() {
+        // Test all day names and abbreviations
+        assert!(matches!(SkipPresets::parse_day("mon"), Ok(Weekday::Mon)));
+        assert!(matches!(SkipPresets::parse_day("monday"), Ok(Weekday::Mon)));
+        assert!(matches!(SkipPresets::parse_day("Monday"), Ok(Weekday::Mon)));
+        assert!(matches!(SkipPresets::parse_day("MONDAY"), Ok(Weekday::Mon)));
+
+        assert!(matches!(SkipPresets::parse_day("tue"), Ok(Weekday::Tue)));
+        assert!(matches!(SkipPresets::parse_day("tuesday"), Ok(Weekday::Tue)));
+
+        assert!(matches!(SkipPresets::parse_day("wed"), Ok(Weekday::Wed)));
+        assert!(matches!(SkipPresets::parse_day("wednesday"), Ok(Weekday::Wed)));
+
+        assert!(matches!(SkipPresets::parse_day("thu"), Ok(Weekday::Thu)));
+        assert!(matches!(SkipPresets::parse_day("thursday"), Ok(Weekday::Thu)));
+
+        assert!(matches!(SkipPresets::parse_day("fri"), Ok(Weekday::Fri)));
+        assert!(matches!(SkipPresets::parse_day("friday"), Ok(Weekday::Fri)));
+
+        assert!(matches!(SkipPresets::parse_day("sat"), Ok(Weekday::Sat)));
+        assert!(matches!(SkipPresets::parse_day("saturday"), Ok(Weekday::Sat)));
+
+        assert!(matches!(SkipPresets::parse_day("sun"), Ok(Weekday::Sun)));
+        assert!(matches!(SkipPresets::parse_day("sunday"), Ok(Weekday::Sun)));
+    }
+
+    #[test]
+    fn test_parse_day_invalid() {
+        assert!(SkipPresets::parse_day("").is_err());
+        assert!(SkipPresets::parse_day("xyz").is_err());
+        assert!(SkipPresets::parse_day("123").is_err());
+        assert!(SkipPresets::parse_day("mond").is_err());
+    }
+
+    #[test]
+    fn test_parse_days_duplicates() {
+        // Duplicates should be filtered out
+        let rule = SkipPresets::parse_days("mon,mon,mon").unwrap();
+        match rule {
+            SkipRule::DaysOfWeek(days) => {
+                assert_eq!(days.len(), 1);
+                assert!(days.contains(&Weekday::Mon));
+            }
+            _ => panic!("Expected DaysOfWeek"),
+        }
+    }
+
+    #[test]
+    fn test_parse_days_empty() {
+        assert!(SkipPresets::parse_days("").is_err());
+    }
+
+    #[test]
+    fn test_parse_days_whitespace() {
+        let rule = SkipPresets::parse_days(" mon , tue , wed ").unwrap();
+        match rule {
+            SkipRule::DaysOfWeek(days) => {
+                assert_eq!(days.len(), 3);
+            }
+            _ => panic!("Expected DaysOfWeek"),
+        }
+    }
+
+    #[test]
+    fn test_parse_time_range_invalid() {
+        assert!(SkipPresets::parse_time_range("").is_err());
+        assert!(SkipPresets::parse_time_range("22").is_err());
+        assert!(SkipPresets::parse_time_range("2200").is_err());
+        assert!(SkipPresets::parse_time_range("22:00").is_err());
+        assert!(SkipPresets::parse_time_range("22-").is_err());
+        assert!(SkipPresets::parse_time_range("-06").is_err());
+        assert!(SkipPresets::parse_time_range("25-06").is_err()); // Invalid hour
+        assert!(SkipPresets::parse_time_range("22-25").is_err()); // Invalid hour
+        assert!(SkipPresets::parse_time_range("abc-def").is_err());
+    }
+
+    #[test]
+    fn test_parse_time_range_variants() {
+        // Test different valid formats
+        let rule = SkipPresets::parse_time_range("0000-2300").unwrap();
+        match rule {
+            SkipRule::TimeRange { start_hour, end_hour } => {
+                assert_eq!(start_hour, 0);
+                assert_eq!(end_hour, 23);
+            }
+            _ => panic!("Expected TimeRange"),
+        }
+
+        let rule = SkipPresets::parse_time_range("12:00-13:00").unwrap();
+        match rule {
+            SkipRule::TimeRange { start_hour, end_hour } => {
+                assert_eq!(start_hour, 12);
+                assert_eq!(end_hour, 13);
+            }
+            _ => panic!("Expected TimeRange"),
+        }
+
+        let rule = SkipPresets::parse_time_range("0900-1700").unwrap();
+        match rule {
+            SkipRule::TimeRange { start_hour, end_hour } => {
+                assert_eq!(start_hour, 9);
+                assert_eq!(end_hour, 17);
+            }
+            _ => panic!("Expected TimeRange"),
+        }
+    }
+
+    #[test]
+    fn test_is_day_name() {
+        assert!(SkipPresets::is_day_name("mon"));
+        assert!(SkipPresets::is_day_name("monday"));
+        assert!(SkipPresets::is_day_name("Monday"));
+        assert!(SkipPresets::is_day_name("SUNDAY"));
+
+        assert!(!SkipPresets::is_day_name(""));
+        assert!(!SkipPresets::is_day_name("xyz"));
+        assert!(!SkipPresets::is_day_name("123"));
+    }
+
+    #[test]
+    fn test_parse_skip_value() {
+        // Test time range
+        let rules = SkipPresets::parse_skip_value("2200-0600").unwrap();
+        assert_eq!(rules.len(), 1);
+
+        // Test days
+        let rules = SkipPresets::parse_skip_value("mon,wed,fri").unwrap();
+        assert_eq!(rules.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_skip_value_invalid() {
+        assert!(SkipPresets::parse_skip_value("").is_err());
+        assert!(SkipPresets::parse_skip_value("invalid").is_err());
+        assert!(SkipPresets::parse_skip_value("123").is_err());
+    }
+
+    #[test]
+    fn test_load_from_taskrc_missing() {
+        let mut presets = SkipPresets::with_defaults();
+        // Should handle missing taskrc gracefully
+        let result = presets.load_from_taskrc();
+        // Don't assert success/failure - just verify it doesn't panic
+        let _ = result;
+    }
+
+    #[test]
+    fn test_skip_preset_get() {
+        let presets = SkipPresets::with_defaults();
+
+        // Test get for existing presets
+        assert!(presets.get("weekend").is_some());
+        assert!(presets.get("bedtime").is_some());
+        assert!(presets.get("nonexistent").is_none());
+
+        // Verify weekend contains correct days
+        let weekend = presets.get("weekend").unwrap();
+        assert_eq!(weekend.len(), 1);
+    }
 }
