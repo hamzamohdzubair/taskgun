@@ -14,13 +14,24 @@ mod taskwarrior;
     version,
     about = "A rusty gun for our taskwarrior",
     long_about = "Extend Taskwarrior with bulk operations and smart scheduling.\n\n\
+                  QUICK SEARCH:\n  \
+                  taskgun <keyword>         # Quick search (projects + descriptions, case-insensitive)\n  \
+                  taskgun <keyword> -r      # Quick regex search (case-sensitive)\n\n\
                   Examples:\n  \
                   taskgun create \"Deep Learning\" -p 5\n  \
                   taskgun create \"Deep Learning\" -p 5 --offset 5d --interval 7d\n  \
                   taskgun create \"Deep Learning\" -p 2,3,1 --offset 5d --interval 7d --skip weekend\n  \
-                  taskgun create \"Deep Learning\" -p 5 --offset 2h --interval 30m  # Mix hours and minutes\n  \
-                  taskgun learning          # Case-insensitive search\n  \
-                  taskgun 'lec.*[0-9]+' -r  # Regex search (case-sensitive)"
+                  taskgun create \"Deep Learning\" -p 5 --offset 2h --interval 30m\n  \
+                  taskgun learning          # Quick search\n  \
+                  taskgun 'lec.*[0-9]+' -r  # Quick regex search",
+    after_help = "QUICK SEARCH:\n  \
+                  taskgun <keyword>         Quick search (projects + descriptions, case-insensitive)\n  \
+                  taskgun <keyword> -r      Quick regex search (case-sensitive)\n\n\
+                  Examples:\n  \
+                  taskgun learning\n  \
+                  taskgun 'video [12]' -r",
+    override_usage = "taskgun <COMMAND>\n       \
+                      taskgun <keyword> [-r]"
 )]
 struct Cli {
     #[command(subcommand)]
