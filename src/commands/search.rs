@@ -35,6 +35,15 @@ pub fn execute(keyword: &str, use_regex: bool, sort: &SortOrder) -> Result<()> {
 
     let mut cmd = Command::new("task");
 
+    // Enable colors for better readability (alternating row backgrounds)
+    cmd.arg("rc.color=on");
+    cmd.arg("rc._forcecolor=on");
+
+    // Use actual terminal width for flexible column layout
+    if let Some((width, _)) = term_size::dimensions() {
+        cmd.arg(format!("rc.defaultwidth={}", width));
+    }
+
     if use_regex {
         // Regex mode: case-sensitive regex search in project and description
         let filter = format!("( project~{} or description~{} )", keyword, keyword);

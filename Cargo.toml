@@ -1,6 +1,6 @@
 [package]
 name = "taskgun"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 authors = ["Hamza Mohd Zubair <hamzamohdzubair@gmail.com>"]
 description = "A rusty gun for our taskwarrior - bulk task generation and smart scheduling"
@@ -15,6 +15,7 @@ clap = { version = "4", features = ["derive", "cargo"] }
 chrono = "0.4"
 anyhow = "1"
 clap_complete = "4"
+term_size = "0.3"
 
 [dev-dependencies]
 assert_cmd = "2"

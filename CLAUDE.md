@@ -48,6 +48,7 @@ taskgun create "Deep Learning" -p "2,3,1" --offset 2h --interval 30m -u "Lecture
 
 **Modes:** Default is case-insensitive `.contains:` search. Regex mode (`-r`) uses `~` operator.
 **Visual breaks:** Output includes blank lines between non-sequential IDs (e.g., 5,6,7 | 9,10) to prevent accidental range deletions.
+**Colors & formatting:** Alternating row backgrounds, color-coded due dates, and flexible column widths (auto-detects terminal width).
 **Shorthand:** `taskgun learning -s due` works without explicit `search` subcommand.
 
 ```bash

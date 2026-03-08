@@ -408,6 +408,8 @@ taskgun 'video [12]' -r            # shorthand
 - Regex mode (`-r`/`--regex`): case-sensitive regex matching
 - Searches both project and description fields
 - Uses Taskwarrior's native filtering
+- Color-coded output with alternating row backgrounds
+- Flexible column widths that adapt to terminal width
 
 ### `taskgun completions`
 
