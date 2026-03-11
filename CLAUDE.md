@@ -72,21 +72,29 @@ taskgun 'lec.*[0-9]+' -r   # regex
 - **Days:** `d1` (today), `d2` (tomorrow), `d3` (day after), `2d` (next 2 days), `7d` (next 7 days)
 - **Weeks:** `w1` (this week), `w2` (next week only), `2w` (next 2 weeks)
 - **Months:** `m1` (this month), `m2` (next month only), `2m` (next 2 months)
+- **Shortcuts:** `tod` (today), `tom` (tomorrow), `week` (this week)
 
 **Letter-first vs number-first:**
+- `d1` → today only (specific day)
+- `1d` → today + overdue (includes backlog)
 - `d2` → tomorrow only (specific day)
-- `2d` → next 2 days (range: today + tomorrow)
+- `2d` → next 2 days (range: today + tomorrow + overdue)
 - `w2` → next week only (specific week)
 - `2w` → next 2 weeks (range: this week + next week)
+
+**Shorthand:** All patterns work without `due` subcommand (e.g., `taskgun d1`, `taskgun 7d`, `taskgun tod`)
 
 **Sorting:** Defaults to urgency descending. Visual breaks and formatting same as search.
 
 ```bash
-taskgun due d1             # tasks due today
-taskgun due d2             # tasks due tomorrow only
-taskgun due 7d             # tasks due in next 7 days
-taskgun due w1             # tasks due this week
-taskgun due 2w -s due      # tasks due in next 2 weeks, sorted by due date
+taskgun due d1             # tasks due today only
+taskgun d1                 # shorthand (same as above)
+taskgun 1d                 # today + overdue (includes backlog)
+taskgun tod                # alias for d1
+taskgun tom                # alias for d2 (tomorrow)
+taskgun 7d -s due          # next 7 days + overdue, sorted by due date
+taskgun week               # alias for w1 (this week)
+taskgun 2w                 # next 2 weeks
 ```
 
 ---

@@ -166,9 +166,9 @@ fn build_day_filter(num: u32, letter_first: bool) -> Result<String> {
             n => format!("( due:today+{}days )", n - 1),
         }
     } else {
-        // 1d, 2d, 7d -> next N days (range)
+        // 1d, 2d, 7d -> next N days (range, including overdue)
         match num {
-            1 => "due:today".to_string(),
+            1 => "( due.before:today+1days )".to_string(), // today + overdue
             n => format!("( due.before:today+{}days )", n),
         }
     };
@@ -407,7 +407,7 @@ mod tests {
     #[test]
     fn test_parse_pattern_1d() {
         let filter = parse_pattern("1d").unwrap();
-        assert_eq!(filter, "due:today");
+        assert_eq!(filter, "( due.before:today+1days )"); // includes overdue
     }
 
     #[test]
@@ -505,8 +505,8 @@ mod tests {
         assert_eq!(build_day_filter(2, true).unwrap(), "( due:tomorrow )");
         assert_eq!(build_day_filter(3, true).unwrap(), "( due:tomorrow+1day )");
 
-        // Number first (ranges: 1d, 2d, 7d)
-        assert_eq!(build_day_filter(1, false).unwrap(), "due:today");
+        // Number first (ranges: 1d, 2d, 7d) - includes overdue
+        assert_eq!(build_day_filter(1, false).unwrap(), "( due.before:today+1days )");
         assert_eq!(build_day_filter(2, false).unwrap(), "( due.before:today+2days )");
         assert_eq!(build_day_filter(7, false).unwrap(), "( due.before:today+7days )");
 
