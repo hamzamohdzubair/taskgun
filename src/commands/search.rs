@@ -42,6 +42,7 @@ pub fn execute(keyword: &str, use_regex: bool, sort: &SortOrder) -> Result<()> {
     // Enable colors for better readability (alternating row backgrounds)
     cmd.arg("rc.color=on");
     cmd.arg("rc._forcecolor=on");
+    cmd.arg("rc.verbose=label"); // Ensure column headings are shown
 
     // Use actual terminal width for flexible column layout
     if let Some((width, _)) = term_size::dimensions() {
@@ -52,7 +53,6 @@ pub fn execute(keyword: &str, use_regex: bool, sort: &SortOrder) -> Result<()> {
         // Regex mode: case-sensitive regex search in project and description
         let filter = format!("( project~{} or description~{} )", keyword, keyword);
         cmd.arg("rc.regex=on");
-        cmd.arg("rc.verbose=nothing");
         cmd.arg(filter);
     } else {
         // Default mode: case-insensitive search using .contains in project and description
@@ -61,24 +61,23 @@ pub fn execute(keyword: &str, use_regex: bool, sort: &SortOrder) -> Result<()> {
             keyword, keyword
         );
         cmd.arg("rc.search.case.sensitive=no");
-        cmd.arg("rc.verbose=nothing");
         cmd.arg(filter);
     }
 
     // Apply sort order
     let sort_param = match sort {
-        SortOrder::Urgency => "rc.report.list.sort=urgency-,id+",
-        SortOrder::Id => "rc.report.list.sort=id+",
-        SortOrder::Due => "rc.report.list.sort=due+,id+",
+        SortOrder::Urgency => "rc.report.next.sort=urgency-,id+",
+        SortOrder::Id => "rc.report.next.sort=id+",
+        SortOrder::Due => "rc.report.next.sort=due+,id+",
     };
     cmd.arg(sort_param);
 
-    cmd.arg("list");
+    cmd.arg("next");
 
     let output = cmd.output()
         .context("Failed to execute task command")?;
 
-    // Check stderr for messages first
+    // Check stderr for messages first (filter out configuration override warnings)
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !stderr.is_empty() {
         // "No matches" is a normal result, not an error - print it normally
@@ -86,15 +85,36 @@ pub fn execute(keyword: &str, use_regex: bool, sort: &SortOrder) -> Result<()> {
             println!("No matches found");
             return Ok(());
         } else {
-            // Other errors should be printed to stderr
-            eprint!("{}", stderr);
+            // Filter out configuration override warnings
+            let filtered_stderr: String = stderr
+                .lines()
+                .filter(|line| !line.starts_with("Configuration override"))
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            // Only print if there are actual errors after filtering
+            if !filtered_stderr.trim().is_empty() {
+                eprint!("{}", filtered_stderr);
+            }
         }
     }
 
-    // Process stdout with line breaks for non-sequential IDs
+    // Process stdout - only add sequence breaks when sorting by ID
     let stdout = String::from_utf8_lossy(&output.stdout);
     if !stdout.is_empty() {
-        print_with_sequence_breaks(&stdout);
+        // Print blank line before table
+        println!();
+
+        let task_count = if matches!(sort, SortOrder::Id) {
+            print_with_sequence_breaks(&stdout)
+        } else {
+            print!("{}", stdout);
+            count_tasks(&stdout)
+        };
+
+        // Print blank line after table and summary
+        println!();
+        print_summary(task_count, keyword, use_regex);
     } else if stderr.is_empty() && !output.status.success() {
         // If both stdout and stderr are empty but command failed, assume no matches
         println!("No matches found");
@@ -104,11 +124,12 @@ pub fn execute(keyword: &str, use_regex: bool, sort: &SortOrder) -> Result<()> {
 }
 
 /// Print task list with line breaks between non-sequential ID groups
-fn print_with_sequence_breaks(output: &str) {
+/// Returns the count of tasks found
+fn print_with_sequence_breaks(output: &str) -> usize {
     let lines: Vec<&str> = output.lines().collect();
 
     if lines.is_empty() {
-        return;
+        return 0;
     }
 
     // Extract task IDs from each line and track line index
@@ -120,7 +141,8 @@ fn print_with_sequence_breaks(output: &str) {
         })
         .collect();
 
-    // Print lines with breaks where ID sequence is broken
+    // Count tasks and print lines with breaks where ID sequence is broken
+    let mut task_count = 0;
     let mut prev_id: Option<u32> = None;
 
     for (line_idx, id_opt) in tasks {
@@ -135,11 +157,26 @@ fn print_with_sequence_breaks(output: &str) {
         // Print the line
         println!("{}", lines[line_idx]);
 
-        // Update previous ID for next iteration
+        // Update task count and previous ID for next iteration
         if id_opt.is_some() {
+            task_count += 1;
             prev_id = id_opt;
         }
     }
+
+    task_count
+}
+
+/// Count the number of tasks in taskwarrior output
+fn count_tasks(output: &str) -> usize {
+    output.lines()
+        .filter(|line| extract_task_id(line).is_some())
+        .count()
+}
+
+/// Print summary statistics
+fn print_summary(task_count: usize, keyword: &str, _use_regex: bool) {
+    println!("searching \"{}\": /{}/: {}", keyword, keyword, task_count);
 }
 
 /// Strip ANSI escape sequences from a string
@@ -260,8 +297,8 @@ mod tests {
         // Test output with sequential IDs (no breaks expected)
         let output = "ID Description\n5 Task 5\n6 Task 6\n7 Task 7\n";
 
-        // Capture printed output (we're just verifying it doesn't panic)
-        print_with_sequence_breaks(output);
+        let count = print_with_sequence_breaks(output);
+        assert_eq!(count, 3);
     }
 
     #[test]
@@ -269,29 +306,44 @@ mod tests {
         // Test output with non-sequential IDs (breaks expected)
         let output = "ID Description\n5 Task 5\n6 Task 6\n7 Task 7\n9 Task 9\n10 Task 10\n";
 
-        // Capture printed output (we're just verifying it doesn't panic)
-        print_with_sequence_breaks(output);
+        let count = print_with_sequence_breaks(output);
+        assert_eq!(count, 5);
     }
 
     #[test]
     fn test_print_with_sequence_breaks_empty_output() {
         // Test with empty string
         let output = "";
-        print_with_sequence_breaks(output);
+        let count = print_with_sequence_breaks(output);
+        assert_eq!(count, 0);
     }
 
     #[test]
     fn test_print_with_sequence_breaks_single_task() {
         // Test with single task
         let output = "ID Description\n5 Task 5\n";
-        print_with_sequence_breaks(output);
+        let count = print_with_sequence_breaks(output);
+        assert_eq!(count, 1);
     }
 
     #[test]
     fn test_print_with_sequence_breaks_large_gap() {
         // Test with large gap in IDs
         let output = "ID Description\n5 Task 5\n100 Task 100\n";
-        print_with_sequence_breaks(output);
+        let count = print_with_sequence_breaks(output);
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn test_count_tasks() {
+        let output = "ID Description\n5 Task 5\n6 Task 6\n7 Task 7\n";
+        assert_eq!(count_tasks(output), 3);
+
+        let empty = "";
+        assert_eq!(count_tasks(empty), 0);
+
+        let with_header_only = "ID Description\n";
+        assert_eq!(count_tasks(with_header_only), 0);
     }
 
     #[test]
