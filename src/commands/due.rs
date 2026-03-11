@@ -273,7 +273,7 @@ fn count_tasks(output: &str) -> usize {
 /// Print summary statistics
 fn print_summary(task_count: usize, pattern: &str) {
     let period_desc = describe_pattern(pattern);
-    println!("due:{}:{}", period_desc, task_count);
+    println!("due: '{}': {}", period_desc, task_count);
 }
 
 /// Describe the pattern in human-readable form
@@ -281,9 +281,10 @@ fn describe_pattern(pattern: &str) -> String {
     let pattern = pattern.trim().to_lowercase();
 
     match pattern.as_str() {
-        "d1" | "1d" => "today".to_string(),
+        "d1" => "today".to_string(),
+        "1d" => "by today".to_string(),
         "d2" => "tomorrow".to_string(),
-        "d3" => "2days later".to_string(),
+        "d3" => "2 days later".to_string(),
         "2d" => "in 2 days".to_string(),
         "7d" => "in 7 days".to_string(),
         "w1" | "1w" => "this week".to_string(),
@@ -301,13 +302,13 @@ fn describe_pattern(pattern: &str) -> String {
                     } else if n == 2 {
                         return "tomorrow".to_string();
                     } else {
-                        return format!("{}days later", n - 1);
+                        return format!("{} days later", n - 1);
                     }
                 }
             } else if let Some(cap) = pattern.strip_suffix('d') {
                 if let Ok(n) = cap.parse::<u32>() {
                     if n == 1 {
-                        return "today".to_string();
+                        return "by today".to_string();
                     } else {
                         return format!("in {} days", n);
                     }
@@ -559,10 +560,10 @@ mod tests {
     #[test]
     fn test_describe_pattern() {
         assert_eq!(describe_pattern("d1"), "today");
-        assert_eq!(describe_pattern("1d"), "today");
+        assert_eq!(describe_pattern("1d"), "by today");
         assert_eq!(describe_pattern("d2"), "tomorrow");
-        assert_eq!(describe_pattern("d3"), "2days later");
-        assert_eq!(describe_pattern("d4"), "3days later");
+        assert_eq!(describe_pattern("d3"), "2 days later");
+        assert_eq!(describe_pattern("d4"), "3 days later");
         assert_eq!(describe_pattern("2d"), "in 2 days");
         assert_eq!(describe_pattern("3d"), "in 3 days");
         assert_eq!(describe_pattern("7d"), "in 7 days");
