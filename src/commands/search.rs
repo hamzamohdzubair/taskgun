@@ -11,13 +11,17 @@ pub struct SearchArgs {
     #[arg(short, long)]
     pub regex: bool,
 
-    /// Sort order (default: id ascending)
-    #[arg(short = 's', long, value_enum, default_value = "id")]
+    /// Sort order (default: urgency descending)
+    #[arg(short = 's', long, value_enum, default_value = "urg")]
     pub sort: SortOrder,
 }
 
 #[derive(Clone, ValueEnum)]
 pub enum SortOrder {
+    /// Sort by urgency (descending, default)
+    #[value(name = "urg")]
+    Urgency,
+
     /// Sort by task ID (ascending)
     #[value(name = "id")]
     Id,
@@ -63,6 +67,7 @@ pub fn execute(keyword: &str, use_regex: bool, sort: &SortOrder) -> Result<()> {
 
     // Apply sort order
     let sort_param = match sort {
+        SortOrder::Urgency => "rc.report.list.sort=urgency-,id+",
         SortOrder::Id => "rc.report.list.sort=id+",
         SortOrder::Due => "rc.report.list.sort=due+,id+",
     };

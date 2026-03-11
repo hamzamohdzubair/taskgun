@@ -44,17 +44,49 @@ taskgun create "Deep Learning" -p "2,3,1" --offset 2h --interval 30m -u "Lecture
 |------|-------|---------|-------------|
 | `keyword` | — | required | Search term or regex pattern |
 | `--regex` | `-r` | false | Enable case-sensitive regex mode |
-| `--sort` | `-s` | `id` | Sort by `id` or `due` |
+| `--sort` | `-s` | `urg` | Sort by `urg` (urgency), `id`, or `due` |
 
 **Modes:** Default is case-insensitive `.contains:` search. Regex mode (`-r`) uses `~` operator.
+**Sorting:** Defaults to urgency descending (most urgent first). Can sort by ID or due date.
 **Visual breaks:** Output includes blank lines between non-sequential IDs (e.g., 5,6,7 | 9,10) to prevent accidental range deletions.
 **Colors & formatting:** Alternating row backgrounds, color-coded due dates, and flexible column widths (auto-detects terminal width).
 **Shorthand:** `taskgun learning -s due` works without explicit `search` subcommand.
 
 ```bash
-taskgun learning           # quick search
+taskgun learning           # quick search (sorted by urgency)
 taskgun learning -s due    # sort by due date
+taskgun learning -s id     # sort by ID
 taskgun 'lec.*[0-9]+' -r   # regex
+```
+
+---
+
+### `taskgun due` — Date-based filtering ✓
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `pattern` | — | required | Date pattern (see below) |
+| `--sort` | `-s` | `urg` | Sort by `urg` (urgency), `id`, or `due` |
+
+**Patterns:**
+- **Days:** `d1` (today), `d2` (tomorrow), `d3` (day after), `2d` (next 2 days), `7d` (next 7 days)
+- **Weeks:** `w1` (this week), `w2` (next week only), `2w` (next 2 weeks)
+- **Months:** `m1` (this month), `m2` (next month only), `2m` (next 2 months)
+
+**Letter-first vs number-first:**
+- `d2` → tomorrow only (specific day)
+- `2d` → next 2 days (range: today + tomorrow)
+- `w2` → next week only (specific week)
+- `2w` → next 2 weeks (range: this week + next week)
+
+**Sorting:** Defaults to urgency descending. Visual breaks and formatting same as search.
+
+```bash
+taskgun due d1             # tasks due today
+taskgun due d2             # tasks due tomorrow only
+taskgun due 7d             # tasks due in next 7 days
+taskgun due w1             # tasks due this week
+taskgun due 2w -s due      # tasks due in next 2 weeks, sorted by due date
 ```
 
 ---
