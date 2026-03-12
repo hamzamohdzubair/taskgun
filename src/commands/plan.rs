@@ -1,27 +1,36 @@
 use anyhow::{Context, Result};
 use clap::Args;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::io::Write;
 
 #[derive(Args)]
 pub struct PlanArgs {
-    /// Comma-separated task IDs to add to plan in sequence (e.g., "1,5,9,4")
+    /// Command: comma-separated task IDs to add (e.g., "1,5,9,4"), "clear"/"clean" to remove all, or "rm" to remove a specific task
     /// If not provided, displays current plan
-    pub ids: Option<String>,
+    pub command: Option<String>,
+
+    /// Task ID (required when command is "rm")
+    pub id: Option<u32>,
 }
 
-/// Execute plan command - either set plan on tasks or display current plan
-pub fn execute(ids_opt: Option<&str>) -> Result<()> {
+/// Execute plan command - either set plan on tasks, clear plan, remove task, or display current plan
+pub fn execute(command_opt: Option<&str>, id_opt: Option<u32>) -> Result<()> {
     // Validate Taskwarrior is installed
     crate::taskwarrior::check_taskwarrior()
         .context("Taskwarrior must be installed to use taskgun")?;
 
-    match ids_opt {
-        Some(ids) => set_plan(ids),
-        None => display_plan(),
+    match (command_opt, id_opt) {
+        (Some("clear") | Some("clean"), None) => clear_plan(),
+        (Some("rm"), Some(id)) => remove_from_plan(id),
+        (Some("rm"), None) => anyhow::bail!("Task ID required for 'rm' command. Usage: taskgun plan rm <id>"),
+        (Some(ids), None) => set_plan(ids),
+        (Some(_), Some(_)) => anyhow::bail!("Unexpected arguments. Usage: taskgun plan [<ids>|clear|rm <id>]"),
+        (None, None) => display_plan(),
+        (None, Some(_)) => anyhow::bail!("Task ID provided without 'rm' command"),
     }
 }
 
-/// Set plan values on specified tasks in sequence
+/// Set plan values on specified tasks in sequence, continuing from existing plan
 fn set_plan(ids: &str) -> Result<()> {
     // Parse comma-separated task IDs
     let task_ids: Result<Vec<u32>, _> = ids
@@ -35,9 +44,13 @@ fn set_plan(ids: &str) -> Result<()> {
         anyhow::bail!("No task IDs provided");
     }
 
-    // Assign plan values sequentially
+    // Get the maximum existing plan value
+    let max_plan = get_max_plan_value()?;
+    let start_plan = max_plan + 1;
+
+    // Assign plan values sequentially, starting after the highest existing plan value
     for (index, task_id) in task_ids.iter().enumerate() {
-        let plan_value = index + 1;
+        let plan_value = start_plan + index as u32;
 
         let mut cmd = Command::new("task");
 
@@ -58,15 +71,255 @@ fn set_plan(ids: &str) -> Result<()> {
         }
     }
 
-    println!("Plan set for {} tasks", task_ids.len());
+    println!("Plan set for {} tasks (starting from plan {})", task_ids.len(), start_plan);
 
     // Display the plan after setting it
     println!();
     display_plan()
 }
 
+/// Get the maximum plan value from all existing pending tasks
+fn get_max_plan_value() -> Result<u32> {
+    let mut cmd = Command::new("task");
+
+    // Define the plan UDA
+    cmd.arg("rc.uda.plan.type=numeric");
+    cmd.arg("rc.uda.plan.label=Plan");
+
+    // Export only pending tasks with plan values
+    cmd.arg("status:pending");
+    cmd.arg("plan.any:");
+    cmd.arg("export");
+
+    let output = cmd.output()
+        .context("Failed to query existing plan values")?;
+
+    if !output.status.success() {
+        // If no tasks with plan exist, return 0
+        return Ok(0);
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Parse JSON output to find max plan value
+    let tasks: Vec<serde_json::Value> = serde_json::from_str(&stdout)
+        .context("Failed to parse task export JSON")?;
+
+    let max = tasks.iter()
+        .filter_map(|task| task.get("plan"))
+        .filter_map(|plan| plan.as_u64())
+        .max()
+        .unwrap_or(0) as u32;
+
+    Ok(max)
+}
+
+/// Clear all plan values from all pending tasks
+fn clear_plan() -> Result<()> {
+    let mut cmd = Command::new("task");
+
+    // Confirm without prompting (must be first)
+    cmd.arg("rc.confirmation=off");
+
+    // Define the plan UDA
+    cmd.arg("rc.uda.plan.type=numeric");
+    cmd.arg("rc.uda.plan.label=Plan");
+
+    // Modify only pending tasks with plan values to remove plan
+    cmd.arg("status:pending");
+    cmd.arg("plan.any:");
+    cmd.arg("modify");
+    cmd.arg("plan:");
+
+    // Set up stdin to provide "all" answer for bulk modification prompt
+    cmd.stdin(Stdio::piped());
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    let mut child = cmd.spawn()
+        .context("Failed to spawn task command")?;
+
+    // Write "all" to stdin to answer the confirmation prompt
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(b"all\n")
+            .context("Failed to write to stdin")?;
+    }
+
+    let output = child.wait_with_output()
+        .context("Failed to wait for task command")?;
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // Filter out configuration override warnings
+    let filtered_stderr: String = stderr
+        .lines()
+        .filter(|line| !line.starts_with("Configuration override"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if !output.status.success() {
+        if stderr.contains("No matches") {
+            println!("No plan to clear");
+            return Ok(());
+        }
+        if !filtered_stderr.trim().is_empty() {
+            anyhow::bail!("Failed to clear plan: {}", filtered_stderr);
+        }
+    }
+
+    println!("Plan cleared");
+    Ok(())
+}
+
+/// Remove a task from the plan and shift all tasks with higher plan values up
+fn remove_from_plan(task_id: u32) -> Result<()> {
+    // Get all tasks with plan values
+    let tasks_with_plan = get_tasks_with_plan()?;
+
+    // Find the task with the given ID
+    let target_task = tasks_with_plan.iter()
+        .find(|t| t.id == task_id)
+        .ok_or_else(|| anyhow::anyhow!("Task {} not found in plan", task_id))?;
+
+    let target_plan = target_task.plan;
+
+    // Remove plan from target task
+    remove_plan_from_task(task_id)?;
+
+    // Decrement plan values for all tasks with plan > target_plan
+    for task in tasks_with_plan.iter().filter(|t| t.plan > target_plan) {
+        set_plan_on_task(task.id, task.plan - 1)?;
+    }
+
+    println!("Task {} removed from plan (shifted remaining tasks up)", task_id);
+
+    // Display the plan after modification
+    println!();
+    display_plan()
+}
+
+/// Struct to hold task ID and plan value
+struct TaskWithPlan {
+    id: u32,
+    plan: u32,
+}
+
+/// Get all tasks with plan values
+fn get_tasks_with_plan() -> Result<Vec<TaskWithPlan>> {
+    let mut cmd = Command::new("task");
+
+    // Define the plan UDA
+    cmd.arg("rc.uda.plan.type=numeric");
+    cmd.arg("rc.uda.plan.label=Plan");
+
+    // Export only pending tasks with plan values (status:pending to exclude completed/deleted)
+    cmd.arg("status:pending");
+    cmd.arg("plan.any:");
+    cmd.arg("export");
+
+    let output = cmd.output()
+        .context("Failed to query tasks with plan values")?;
+
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Parse JSON output
+    let tasks: Vec<serde_json::Value> = serde_json::from_str(&stdout)
+        .context("Failed to parse task export JSON")?;
+
+    let result = tasks.iter()
+        .filter_map(|task| {
+            let id = task.get("id")?.as_u64()? as u32;
+            let plan = task.get("plan")?.as_u64()? as u32;
+            // Only include valid task IDs (> 0)
+            if id > 0 {
+                Some(TaskWithPlan { id, plan })
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Ok(result)
+}
+
+/// Remove plan value from a specific task
+fn remove_plan_from_task(task_id: u32) -> Result<()> {
+    let mut cmd = Command::new("task");
+
+    // Confirm without prompting (must be first)
+    cmd.arg("rc.confirmation=off");
+
+    // Define the plan UDA
+    cmd.arg("rc.uda.plan.type=numeric");
+    cmd.arg("rc.uda.plan.label=Plan");
+
+    cmd.arg(task_id.to_string());
+    cmd.arg("modify");
+    cmd.arg("plan:");
+
+    let output = cmd.output()
+        .context(format!("Failed to remove plan from task {}", task_id))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        // Filter out configuration override warnings
+        let filtered_stderr: String = stderr
+            .lines()
+            .filter(|line| !line.starts_with("Configuration override"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        if !filtered_stderr.trim().is_empty() {
+            anyhow::bail!("Failed to remove plan from task {}: {}", task_id, filtered_stderr);
+        }
+    }
+
+    Ok(())
+}
+
+/// Set plan value on a specific task
+fn set_plan_on_task(task_id: u32, plan_value: u32) -> Result<()> {
+    let mut cmd = Command::new("task");
+
+    // Confirm without prompting (must be first)
+    cmd.arg("rc.confirmation=off");
+
+    // Define the plan UDA
+    cmd.arg("rc.uda.plan.type=numeric");
+    cmd.arg("rc.uda.plan.label=Plan");
+
+    cmd.arg(task_id.to_string());
+    cmd.arg("modify");
+    cmd.arg(format!("plan:{}", plan_value));
+
+    let output = cmd.output()
+        .context(format!("Failed to set plan on task {}", task_id))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        // Filter out configuration override warnings
+        let filtered_stderr: String = stderr
+            .lines()
+            .filter(|line| !line.starts_with("Configuration override"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        if !filtered_stderr.trim().is_empty() {
+            anyhow::bail!("Failed to set plan on task {}: {}", task_id, filtered_stderr);
+        }
+    }
+
+    Ok(())
+}
+
 /// Display tasks with plan UDA sorted by plan value
-fn display_plan() -> Result<()> {
+pub fn display_plan() -> Result<()> {
     let mut cmd = Command::new("task");
 
     // Enable colors for better readability
@@ -83,7 +336,8 @@ fn display_plan() -> Result<()> {
     cmd.arg("rc.uda.plan.type=numeric");
     cmd.arg("rc.uda.plan.label=Plan");
 
-    // Filter for tasks with plan UDA
+    // Filter for pending tasks with plan UDA
+    cmd.arg("status:pending");
     cmd.arg("plan.any:");
 
     // Sort by plan ascending

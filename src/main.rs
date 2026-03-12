@@ -95,7 +95,7 @@ fn main() -> Result<()> {
             commands::due::execute(&args.pattern, &args.sort)?;
         }
         Commands::Plan(args) => {
-            commands::plan::execute(args.ids.as_deref())?;
+            commands::plan::execute(args.command.as_deref(), args.id)?;
         }
         Commands::Completions { shell } => {
             let mut cmd = Cli::command();

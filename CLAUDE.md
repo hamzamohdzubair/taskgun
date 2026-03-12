@@ -99,6 +99,32 @@ taskgun 2w                 # next 2 weeks
 
 ---
 
+### `taskgun plan` — Task sequencing ✓
+
+| Command | Description |
+|---------|-------------|
+| `plan` | Display current plan sorted by plan value |
+| `plan <ids>` | Add comma-separated task IDs to plan (e.g., "1,5,9,4") |
+| `plan clear` or `plan clean` | Remove all plan values from all tasks |
+| `plan rm <id>` | Remove task from plan and shift remaining tasks up |
+
+**Behavior:**
+- **Adding tasks:** Checks existing plan values and continues from max + 1
+  - Example: If plan has tasks 1,2,3, then `taskgun plan 5,7` sets task 5 to plan=4, task 7 to plan=5
+- **Clearing plan:** `plan clear` or `plan clean` removes all plan values from all tasks
+- **Removing task:** `plan rm <id>` removes the task from plan and shifts higher-numbered tasks down
+  - Example: If plan has tasks 1,2,3,4,5 as plan=1,2,3,4,5, then `taskgun plan rm 3` results in 1,2,4,5 as plan=1,2,3,4
+
+```bash
+taskgun plan                  # display current plan
+taskgun plan 1,5,9,4         # add tasks to plan (continues from existing plan)
+taskgun plan clear           # remove all plan values
+taskgun plan clean           # alias for clear
+taskgun plan rm 5            # remove task 5 from plan, shift remaining tasks up
+```
+
+---
+
 ### `taskgun modify` — Bulk modification (planned)
 
 ```bash
@@ -125,5 +151,7 @@ src/
 └── commands/
     ├── create.rs     # bulk generation
     ├── search.rs     # keyword search with ID breaks
+    ├── due.rs        # date-based filtering
+    ├── plan.rs       # task sequencing (display, add, clear, rm)
     └── modify.rs     # (planned)
 ```
