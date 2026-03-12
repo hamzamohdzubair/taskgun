@@ -68,6 +68,9 @@ enum Commands {
     /// Filter tasks by due date (d1=today, d2=tomorrow, 2d=next 2 days, w1=this week, 2w=next 2 weeks, m1=this month, 2m=next 2 months)
     Due(commands::due::DueArgs),
 
+    /// Manage task plan sequence (assign plan values or display current plan)
+    Plan(commands::plan::PlanArgs),
+
     /// Generate shell completions
     Completions {
         /// The shell to generate completions for
@@ -90,6 +93,9 @@ fn main() -> Result<()> {
         }
         Commands::Due(args) => {
             commands::due::execute(&args.pattern, &args.sort)?;
+        }
+        Commands::Plan(args) => {
+            commands::plan::execute(args.ids.as_deref())?;
         }
         Commands::Completions { shell } => {
             let mut cmd = Cli::command();
