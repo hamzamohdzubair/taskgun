@@ -125,6 +125,24 @@ taskgun plan rm 5            # remove task 5 from plan, shift remaining tasks up
 
 ---
 
+### `taskgun done` — Complete task and update plan ✓
+
+| Argument | Description |
+|----------|-------------|
+| `id` | Task ID to mark as complete (required) |
+
+**Behavior:**
+- Marks the task as complete using `task <id> done`
+- If the task is in the plan, removes it and shifts remaining tasks up
+- Example: If plan has tasks 1,2,3,4,5 as plan=1,2,3,4,5, then `taskgun done 3` marks task 3 as complete and results in 1,2,4,5 as plan=1,2,3,4
+- If the task is not in the plan, simply marks it as complete
+
+```bash
+taskgun done 5               # mark task 5 as complete and remove from plan
+```
+
+---
+
 ### `taskgun modify` — Bulk modification (planned)
 
 ```bash
@@ -153,5 +171,6 @@ src/
     ├── search.rs     # keyword search with ID breaks
     ├── due.rs        # date-based filtering
     ├── plan.rs       # task sequencing (display, add, clear, rm)
+    ├── done.rs       # complete task and update plan
     └── modify.rs     # (planned)
 ```

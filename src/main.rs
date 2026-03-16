@@ -71,6 +71,9 @@ enum Commands {
     /// Manage task plan sequence (assign plan values or display current plan)
     Plan(commands::plan::PlanArgs),
 
+    /// Mark task as done and remove from plan (shifting remaining tasks)
+    Done(commands::done::DoneArgs),
+
     /// Generate shell completions
     Completions {
         /// The shell to generate completions for
@@ -96,6 +99,9 @@ fn main() -> Result<()> {
         }
         Commands::Plan(args) => {
             commands::plan::execute(args.command.as_deref(), args.id)?;
+        }
+        Commands::Done(args) => {
+            commands::done::execute(args.id)?;
         }
         Commands::Completions { shell } => {
             let mut cmd = Cli::command();

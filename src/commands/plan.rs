@@ -508,18 +508,22 @@ mod tests {
     }
 
     #[test]
-    fn test_plan_args_with_ids() {
+    fn test_plan_args_with_command() {
         let args = PlanArgs {
-            ids: Some("1,2,3".to_string()),
+            command: Some("1,2,3".to_string()),
+            id: None,
         };
-        assert_eq!(args.ids, Some("1,2,3".to_string()));
+        assert_eq!(args.command, Some("1,2,3".to_string()));
+        assert_eq!(args.id, None);
     }
 
     #[test]
-    fn test_plan_args_without_ids() {
+    fn test_plan_args_without_command() {
         let args = PlanArgs {
-            ids: None,
+            command: None,
+            id: None,
         };
-        assert_eq!(args.ids, None);
+        assert_eq!(args.command, None);
+        assert_eq!(args.id, None);
     }
 }

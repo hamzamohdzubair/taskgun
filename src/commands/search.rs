@@ -49,6 +49,9 @@ pub fn execute(keyword: &str, use_regex: bool, sort: &SortOrder) -> Result<()> {
         cmd.arg(format!("rc.defaultwidth={}", width));
     }
 
+    // Disable height limit to show all tasks
+    cmd.arg("rc.defaultheight=0");
+
     if use_regex {
         // Regex mode: case-sensitive regex search in project and description
         let filter = format!("( project~{} or description~{} )", keyword, keyword);

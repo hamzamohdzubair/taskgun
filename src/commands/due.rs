@@ -48,6 +48,9 @@ pub fn execute(pattern: &str, sort: &SortOrder) -> Result<()> {
         cmd.arg(format!("rc.defaultwidth={}", width));
     }
 
+    // Disable height limit to show all tasks
+    cmd.arg("rc.defaultheight=0");
+
     // Add date filter
     cmd.arg(filter);
 
