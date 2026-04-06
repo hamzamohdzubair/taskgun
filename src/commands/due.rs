@@ -191,10 +191,10 @@ fn build_week_filter(num: u32, letter_first: bool) -> Result<String> {
             n => format!("( due.after:sow+{}w-1s and due.before:sow+{}w+7d+1s )", n - 1, n - 1),
         }
     } else {
-        // 1w, 2w -> next N weeks (range)
+        // 1w, 2w -> next N weeks (range, including overdue)
         match num {
-            1 => "( due.after:sow-1s and due.before:eow+1s )".to_string(),
-            n => format!("( due.after:sow-1s and due.before:eow+{}w+1s )", n - 1),
+            1 => "( due.before:eow+1s )".to_string(),
+            n => format!("( due.before:eow+{}w+1s )", n - 1),
         }
     };
     Ok(filter)
@@ -213,10 +213,10 @@ fn build_month_filter(num: u32, letter_first: bool) -> Result<String> {
             n => format!("( due.after:som+{}month-1s and due.before:som+{}month+1month+1s )", n - 1, n - 1),
         }
     } else {
-        // 1m, 2m -> next N months (range)
+        // 1m, 2m -> next N months (range, including overdue)
         match num {
-            1 => "( due.after:som-1s and due.before:eom+1s )".to_string(),
-            n => format!("( due.after:som-1s and due.before:eom+{}month+1s )", n - 1),
+            1 => "( due.before:eom+1s )".to_string(),
+            n => format!("( due.before:eom+{}month+1s )", n - 1),
         }
     };
     Ok(filter)
@@ -447,7 +447,7 @@ mod tests {
     #[test]
     fn test_parse_pattern_1w() {
         let filter = parse_pattern("1w").unwrap();
-        assert_eq!(filter, "( due.after:sow-1s and due.before:eow+1s )");
+        assert_eq!(filter, "( due.before:eow+1s )");
     }
 
     #[test]
@@ -459,7 +459,7 @@ mod tests {
     #[test]
     fn test_parse_pattern_2w() {
         let filter = parse_pattern("2w").unwrap();
-        assert_eq!(filter, "( due.after:sow-1s and due.before:eow+1w+1s )");
+        assert_eq!(filter, "( due.before:eow+1w+1s )");
     }
 
     #[test]
@@ -471,7 +471,7 @@ mod tests {
     #[test]
     fn test_parse_pattern_1m() {
         let filter = parse_pattern("1m").unwrap();
-        assert_eq!(filter, "( due.after:som-1s and due.before:eom+1s )");
+        assert_eq!(filter, "( due.before:eom+1s )");
     }
 
     #[test]
@@ -483,7 +483,7 @@ mod tests {
     #[test]
     fn test_parse_pattern_2m() {
         let filter = parse_pattern("2m").unwrap();
-        assert_eq!(filter, "( due.after:som-1s and due.before:eom+1month+1s )");
+        assert_eq!(filter, "( due.before:eom+1month+1s )");
     }
 
     #[test]
@@ -524,10 +524,10 @@ mod tests {
         assert_eq!(build_week_filter(1, true).unwrap(), "( due.after:sow-1s and due.before:eow+1s )");
         assert_eq!(build_week_filter(2, true).unwrap(), "( due.after:eow and due.before:eow+1w+1s )");
 
-        // Number first (ranges: 1w, 2w, 3w)
-        assert_eq!(build_week_filter(1, false).unwrap(), "( due.after:sow-1s and due.before:eow+1s )");
-        assert_eq!(build_week_filter(2, false).unwrap(), "( due.after:sow-1s and due.before:eow+1w+1s )");
-        assert_eq!(build_week_filter(3, false).unwrap(), "( due.after:sow-1s and due.before:eow+2w+1s )");
+        // Number first (ranges: 1w, 2w, 3w) - includes overdue
+        assert_eq!(build_week_filter(1, false).unwrap(), "( due.before:eow+1s )");
+        assert_eq!(build_week_filter(2, false).unwrap(), "( due.before:eow+1w+1s )");
+        assert_eq!(build_week_filter(3, false).unwrap(), "( due.before:eow+2w+1s )");
 
         assert!(build_week_filter(0, true).is_err());
         assert!(build_week_filter(0, false).is_err());
@@ -539,10 +539,10 @@ mod tests {
         assert_eq!(build_month_filter(1, true).unwrap(), "( due.after:som-1s and due.before:eom+1s )");
         assert_eq!(build_month_filter(2, true).unwrap(), "( due.after:eom and due.before:eom+1month+1s )");
 
-        // Number first (ranges: 1m, 2m, 3m)
-        assert_eq!(build_month_filter(1, false).unwrap(), "( due.after:som-1s and due.before:eom+1s )");
-        assert_eq!(build_month_filter(2, false).unwrap(), "( due.after:som-1s and due.before:eom+1month+1s )");
-        assert_eq!(build_month_filter(3, false).unwrap(), "( due.after:som-1s and due.before:eom+2month+1s )");
+        // Number first (ranges: 1m, 2m, 3m) - includes overdue
+        assert_eq!(build_month_filter(1, false).unwrap(), "( due.before:eom+1s )");
+        assert_eq!(build_month_filter(2, false).unwrap(), "( due.before:eom+1month+1s )");
+        assert_eq!(build_month_filter(3, false).unwrap(), "( due.before:eom+2month+1s )");
 
         assert!(build_month_filter(0, true).is_err());
         assert!(build_month_filter(0, false).is_err());

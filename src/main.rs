@@ -59,6 +59,9 @@ struct Cli {
 #[derive(Subcommand)]
 #[command(allow_external_subcommands = true)]
 enum Commands {
+    /// Add a single task with optional link from clipboard
+    Add(commands::add::AddArgs),
+
     /// Bulk task generation with smart scheduling
     Create(commands::create::CreateArgs),
 
@@ -73,6 +76,9 @@ enum Commands {
 
     /// Mark task as done and remove from plan (shifting remaining tasks)
     Done(commands::done::DoneArgs),
+
+    /// Open link/url from a task in the browser
+    Open(commands::open::OpenArgs),
 
     /// Generate shell completions
     Completions {
@@ -90,6 +96,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::Add(args) => commands::add::execute(args)?,
         Commands::Create(args) => commands::create::execute(args)?,
         Commands::Search(args) => {
             commands::search::execute(&args.keyword, args.regex, &args.sort)?;
@@ -102,6 +109,9 @@ fn main() -> Result<()> {
         }
         Commands::Done(args) => {
             commands::done::execute(args.id)?;
+        }
+        Commands::Open(args) => {
+            commands::open::execute(args.id)?;
         }
         Commands::Completions { shell } => {
             let mut cmd = Cli::command();

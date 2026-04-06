@@ -83,6 +83,7 @@ Creates 20 exercises scheduled every 45 minutes (30 min work + 15 min break), st
 
 ## Features
 
+- **Link management** — Add tasks with URLs/links from clipboard and open them in your browser
 - **Bulk task generation** — Create numbered task series with a single command
 - **Instant keyword search** — Search tasks by typing `taskgun keyword` (searches projects and descriptions)
 - **Flexible skip system** — Skip time windows and days using presets or custom rules
@@ -144,6 +145,30 @@ taskgun create Project --offset 2h --interval 3h --skip lunch --skip bedtime
 - `weekend`: Saturday and Sunday
 
 ## Usage
+
+### Add task with link from clipboard
+
+Quickly add a task and attach a URL from your clipboard:
+
+```bash
+# Copy a URL to clipboard first, then:
+taskgun add -l 'Read this article' due:tomorrow +reading
+
+# Add a task without a link
+taskgun add 'Buy groceries' due:today +shopping
+
+# Add with multiple taskwarrior attributes
+taskgun add 'Fix login bug' project:webapp due:10d priority:H +urgent
+```
+
+The `-l` (or `--link`) flag reads your clipboard content and attaches it as a `link` UDA to the task. It also prepends a 🔗 emoji to the task description for easy visual identification in your task list. Later, open the link in your browser:
+
+```bash
+# If the task above was created with ID 45:
+taskgun open 45
+```
+
+This opens the link in your default browser.
 
 ### Keyword search
 
@@ -323,6 +348,75 @@ taskgun create "Deep Learning" --offset 2h --interval 3h --skip lunch --skip bed
 
 ## Command Reference
 
+### `taskgun add`
+
+Add a single task with optional link from clipboard.
+
+**Syntax:**
+```bash
+taskgun add [OPTIONS] <TASK_PARTS>...
+```
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `<TASK_PARTS>...` | String | Task description and optional taskwarrior arguments (required) |
+
+**Options:**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--link` | `-l` | Attach clipboard content as link/url UDA to task |
+
+**Examples:**
+
+```bash
+# Simple task without link
+taskgun add 'Buy milk'
+
+# Task with due date and tags
+taskgun add 'Review PR' due:tomorrow +work
+
+# Task with link from clipboard
+taskgun add -l 'Read article' due:7d +reading
+
+# Complex task with project and priority
+taskgun add 'Fix authentication' project:webapp due:today priority:H +urgent
+```
+
+**Notes:**
+- With `-l` flag: reads clipboard and stores content as a `link` UDA, and prepends 🔗 emoji to description
+- Supports all standard Taskwarrior arguments (due, project, priority, tags, etc.)
+- Use `taskgun open <id>` to open the attached link later
+
+### `taskgun open`
+
+Open the link/url from a task in your default browser.
+
+**Syntax:**
+```bash
+taskgun open <ID>
+```
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `<ID>` | Number | Task ID with link to open (required) |
+
+**Examples:**
+
+```bash
+# Open link from task 45
+taskgun open 45
+```
+
+**Notes:**
+- Opens the `link` UDA value in your system's default browser
+- Fails gracefully if the task has no link attached
+- Works with any URL format (http, https, file, etc.)
+
 ### `taskgun create`
 
 Generate a series of numbered [Taskwarrior](https://taskwarrior.org) tasks.
@@ -473,8 +567,13 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [x] v0.2.0: Skip system with presets and custom rules
 - [x] v0.3.0: Mixed unit support and refined defaults
 - [x] v0.4.0: Keyword search functionality
-- [ ] v0.5.0: Bulk modify subcommand
-- [ ] v1.0.0: Stable release with comprehensive testing
+- [x] v0.5.0: Sort options and test coverage improvements
+- [x] v0.6.0: Date-based filtering with due command
+- [x] v0.7.0: Task plan sequencing
+- [x] v0.8.0: Done command with plan integration
+- [x] v0.9.0: Link management (add with clipboard, open in browser)
+- [ ] v1.0.0: Bulk modify subcommand
+- [ ] v1.1.0: Stable release with comprehensive testing
 
 ## Links
 

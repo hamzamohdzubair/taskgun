@@ -8,6 +8,8 @@ A Rust CLI extending Taskwarrior with bulk operations, smart scheduling, and sea
 clap = { version = "4", features = ["derive"] }   # CLI + help
 chrono = "0.4"                                      # time + quiet window
 anyhow = "1"                                        # errors
+arboard = "3"                                       # clipboard access
+opener = "0.7"                                      # open URLs in browser
 ```
 
 - Published on crates.io as `taskgun`
@@ -17,6 +19,45 @@ anyhow = "1"                                        # errors
 ---
 
 ## Commands
+
+### `taskgun add` — Add single task with optional link ✓
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `task_parts` | — | required | Task description and optional taskwarrior arguments |
+| `--link` | `-l` | false | Attach clipboard content as link/url UDA to task |
+
+**Behavior:**
+- Adds a single task with description and any taskwarrior arguments (due dates, tags, projects, etc.)
+- With `-l` flag: reads clipboard content and attaches it as a `link` UDA to the task
+- When `-l` is used, prepends 🔗 emoji to the task description for easy visual identification
+- The link is stored using Taskwarrior's UDA (User Defined Attribute) system
+- Use `taskgun open <id>` to open the link in your browser
+
+```bash
+taskgun add 'Buy groceries' due:tomorrow +shopping
+taskgun add -l 'Read this article' due:10d +reading
+taskgun add 'Fix bug in login' project:webapp due:today priority:H
+```
+
+---
+
+### `taskgun open` — Open task link in browser ✓
+
+| Argument | Description |
+|----------|-------------|
+| `id` | Task ID with link to open (required) |
+
+**Behavior:**
+- Retrieves the `link` UDA from the specified task
+- Opens the link in your default browser using the system's default opener
+- Fails gracefully if the task has no link attached
+
+```bash
+taskgun open 45              # opens link from task 45 in browser
+```
+
+---
 
 ### `taskgun create` — Bulk task generation ✓
 
@@ -155,6 +196,8 @@ taskgun modify --project "Deep Learning" --due-shift +2d
 
 **Architecture:**
 - Shell out to `task` via `std::process::Command`
+- `add`: single task with clipboard link via `arboard`
+- `open`: browser launch via `opener` crate
 - `create`: one `task add` per task
 - `search`: build filter + `task list` with custom sort
 - Quiet window: `h >= 22 || h < 6` → push to 06:00, cascade intervals
@@ -167,10 +210,12 @@ src/
 ├── skip.rs           # skip window parsing
 ├── taskwarrior.rs    # task binary checks
 └── commands/
+    ├── add.rs        # single task with clipboard link
     ├── create.rs     # bulk generation
     ├── search.rs     # keyword search with ID breaks
     ├── due.rs        # date-based filtering
     ├── plan.rs       # task sequencing (display, add, clear, rm)
     ├── done.rs       # complete task and update plan
+    ├── open.rs       # open task link in browser
     └── modify.rs     # (planned)
 ```
