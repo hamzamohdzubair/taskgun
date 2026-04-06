@@ -59,8 +59,8 @@ struct Cli {
 #[derive(Subcommand)]
 #[command(allow_external_subcommands = true)]
 enum Commands {
-    /// Add a single task with optional link from clipboard
-    Add(commands::add::AddArgs),
+    /// Create a new task with clipboard link, or attach link to existing task (-i <id>)
+    Link(commands::link::LinkArgs),
 
     /// Bulk task generation with smart scheduling
     Create(commands::create::CreateArgs),
@@ -96,7 +96,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Add(args) => commands::add::execute(args)?,
+        Commands::Link(args) => commands::link::execute(args)?,
         Commands::Create(args) => commands::create::execute(args)?,
         Commands::Search(args) => {
             commands::search::execute(&args.keyword, args.regex, &args.sort)?;
